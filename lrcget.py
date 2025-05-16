@@ -27,9 +27,14 @@ from picard.config import BoolOption
 PLUGIN_NAME = "LRCLIB Lyrics"
 PLUGIN_AUTHOR = "Glicole"
 PLUGIN_DESCRIPTION = (
-    "Fetch lyrics from LRCLIB.<br/>"
-    "Lyrics provided are for educational purposes and personal use only. Commercial use is not allowed.<br/>"
-    "Modified from Dylancyclone to save .lrc file too for Jellyfin support"
+    "Fetch and embed lyrics from LRCLIB's crowdsourced database<br/>"
+    "<b>Automatic Integration:</b> Save lyrics to both audio file metadata <i>and</i> .lrc sidecar files<br/>"
+    "<b>Jellyfin/Plex Ready:</b> Generated .lrc files work seamlessly with media servers and Kodi<br/>"
+    "<b>Configurable Workflow:</b> Toggle auto-fetching and .lrc file creation in plugin settings<br/>"
+    "<b>Educational Use:</b> Lyrics are provided under LRCLIB's terms (non-commercial use only)<br/>"
+    "<b>Smart Syncing:</b> Prefers synchronized lyrics when available, falls back to plain text<br/>"
+    "<br/>"
+    "<i>Based on Dylancyclone's original plugin with enhanced file export capabilities</i>"
 )
 PLUGIN_VERSION = "1.0.0"
 PLUGIN_API_VERSIONS = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
@@ -103,9 +108,10 @@ def process_search_response(album, metadata, linked_files, response, reply, erro
             else response["plainLyrics"]
         )
         metadata["lyrics"] = lyrics
-        if linked_files:
-            for file in linked_files:
-                file.metadata["lyrics"] = lyrics
+        for file in linked_files:
+            file.metadata["lyrics"] = lyrics
+
+            if config.setting["save_lrc_file"]:
                 file_lrc = f"{file.metadata['~dirname']}/{file.metadata['~filename']}.lrc"
                 if not os.path.exists(file_lrc):
                     with open(file_lrc, "w") as f:
@@ -117,7 +123,7 @@ def process_search_response(album, metadata, linked_files, response, reply, erro
         )
 
     except (TypeError, KeyError, ValueError):
-        log.waning(
+        log.error(
             '{}: lyrics NOT loaded for track "{}" by {}'.format(
                 PLUGIN_NAME, metadata["title"], metadata["artist"]
             ),
@@ -136,15 +142,19 @@ class LrclibLyricsOptionsPage(OptionsPage):
     PARENT = "plugins"
 
     options = [
-        BoolOption("setting", "search_on_load", False)
+        BoolOption("setting", "search_on_load", False),
+        BoolOption("setting", "save_lrc_file", True)
     ]
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.box = QtWidgets.QVBoxLayout(self)
 
-        self.input = QtWidgets.QCheckBox("Search for lyrics when loading tracks", self)
-        self.box.addWidget(self.input)
+        self.auto_search = QtWidgets.QCheckBox("Search for lyrics when loading tracks", self)
+        self.box.addWidget(self.auto_search)
+
+        self.save_lrc = QtWidgets.QCheckBox("Save .lrc file alongside audio files", self)
+        self.box.addWidget(self.save_lrc)
 
         self.spacer = QtWidgets.QSpacerItem(
             0, 0, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding
@@ -161,11 +171,12 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.box.addWidget(self.description)
 
     def load(self):
-        self.input.setChecked(config.setting["search_on_load"])
+        self.auto_search.setChecked(config.setting["search_on_load"])
+        self.save_lrc.setChecked(config.setting["save_lrc_file"])
 
     def save(self):
-        config.setting["search_on_load"] = self.input.checkState()
-
+        config.setting["search_on_load"] = self.auto_search.isChecked()
+        config.setting["save_lrc_file"] = self.save_lrc.isChecked()
 
 class LrclibLyricsMetadataProcessor:
 
@@ -174,8 +185,10 @@ class LrclibLyricsMetadataProcessor:
 
     def process_metadata(self, album, metadata, track, release):
         if config.setting["search_on_load"]:
+            if not track.linked_files:
+                return
             length = None
-            if track['length']:
+            if track['~length']:
                 length = track.metadata["~length"].split(":")
                 length = int(length[0]) * 60 + int(length[1])
             search_for_lyrics(album, metadata, track.linked_files, length)
