@@ -13,7 +13,7 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
 
 ## Installation
 1. **Download Plugin Files**:
-   - Get the latest `.py` files from [GitHub Releases](#) *(https://raw.githubusercontent.com/izaz4141/picard-lrclib/refs/heads/main/lrcget.py)*
+   - Get the latest `.py` files from [**GitHub Releases**](https://raw.githubusercontent.com/izaz4141/picard-lrclib/refs/heads/main/lrcget.py)
    
 2. **Install in Picard**:
    - Open Picard → `Options` → `Plugins`
