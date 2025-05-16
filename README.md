@@ -31,7 +31,7 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
 
 
 2. **Save Lyrics to Files**
-   **After fetching**, you **must save the files** to write lyrics to both metadata and `.lrc` files:  
+   **After fetching**, you **must save the files** to write lyrics to metadata:  
    - Click the 💾 **Save** button in Picard’s toolbar, or press `Ctrl+S`  
    - Lyrics will be:  
      - Embedded into the audio file’s `lyrics` metadata tag  
