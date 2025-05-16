@@ -21,16 +21,22 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
    - Select the downloaded `.py` file(s)
 
 ## Usage
-### Automatic Fetching
-1. Enable auto-fetch:  
-   `Options` → `Plugins` → `LRCLIB Lyrics` → Check "Search for lyrics when loading tracks"
+### 1. Fetch Lyrics
+**Automatic Fetching** (on track load):
+- Enable auto-fetch:  
+  `Options` → `Plugins` → `LRCLIB Lyrics` → Check "Search for lyrics when loading tracks"
 
-### Manual Fetching
-1. Right-click track/album →  
-   `Search for lyrics with LRCLIB...`
+**Manual Fetching**:  
+- Right-click track/album → `Search for lyrics with LRCLIB...`
 
-.lyrics files will be saved as:  
-`[audio filename].lrc` (e.g. `Song Name.lrc`)
+---
+
+### 2. Save Lyrics to Files
+**After fetching**, you **must save the files** to write lyrics to both metadata and `.lrc` files:  
+- Click the 💾 **Save** button in Picard’s toolbar, or press `Ctrl+S`  
+- Lyrics will be:  
+  - Embedded into the audio file’s `lyrics` metadata tag  
+  - Saved as a `.lrc` file in the same folder as the audio file
 
 ## Compatibility
 | Component           | Supported          |
@@ -43,7 +49,6 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
 ## Notes
 - Lyrics are saved in UTF-8 encoding
 - `.lrc` files match your audio filenames automatically
-- Lyrics provided under [LRCLIB's terms](https://lrclib.net/terms)
 
 ## Disclaimer
-This plugin is unofficial. Always verify lyrics accuracy. Commercial use of lyrics may require licensing.
+This plugin is unofficial. Always verify lyrics accuracy.
