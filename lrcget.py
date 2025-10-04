@@ -185,14 +185,16 @@ class LrclibLyricsMetadataProcessor:
 
     def process_metadata(self, album, metadata, track, release):
         if config.setting["search_on_load"]:
-            if not track.linked_files:
-                return
-            length = None
-            if track['~length']:
-                length = track.metadata["~length"].split(":")
-                length = int(length[0]) * 60 + int(length[1])
-            search_for_lyrics(album, metadata, track.linked_files, length)
-
+            try:
+                if not track.linked_files:
+                    return
+                length = None
+                if track['~length']:
+                    length = track.metadata["~length"].split(":")
+                    length = int(length[0]) * 60 + int(length[1])
+                search_for_lyrics(album, metadata, track.linked_files, length)
+            except Exception as err:
+                log.error(err)
 
 class LrclibLyricsTrackAction(BaseAction):
     NAME = "Search for lyrics with LRCLIB..."
