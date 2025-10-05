@@ -36,12 +36,31 @@ PLUGIN_DESCRIPTION = (
     "<br/>"
     "<i>Based on Dylancyclone's original plugin with enhanced file export capabilities</i>"
 )
-PLUGIN_VERSION = "1.0.0"
+PLUGIN_VERSION = "1.0.1"
 PLUGIN_API_VERSIONS = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
 PLUGIN_LICENSE = "MIT"
 PLUGIN_LICENSE_URL = "https://opensource.org/licenses/MIT"
 
 lrclib_url = "https://lrclib.net/api/get"
+
+def confirm_replace(parent, title, description):
+    try:
+        app = QtWidgets.QApplication.instance()
+        if app is None:
+            # No QApplication (headless) — be conservative and don't replace.
+            return False
+        parent_widget = QtWidgets.QApplication.activeWindow() if parent is None else parent
+        reply = QtWidgets.QMessageBox.question(
+            parent_widget,
+            title,
+            description,
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No
+        )
+        return reply == QtWidgets.QMessageBox.Yes
+    except Exception:
+        # If anything goes wrong with the dialog, don't overwrite.
+        return False
 
 
 def _request(ws, callback, queryargs=None, important=False):
@@ -59,7 +78,7 @@ def _request(ws, callback, queryargs=None, important=False):
     )
 
 
-def search_for_lyrics(album, metadata, linked_files, length=None):
+def search_for_lyrics(method, album, metadata, linked_files, length=None):
     artist = metadata["artist"]
     title = metadata["title"]
     albumName = metadata["album"]
@@ -85,12 +104,12 @@ def search_for_lyrics(album, metadata, linked_files, length=None):
     )
     _request(
         album.tagger.webservice,
-        partial(process_search_response, album, metadata, linked_files),
+        partial(process_search_response, method, album, metadata, linked_files),
         queryargs,
     )
 
 
-def process_search_response(album, metadata, linked_files, response, reply, error):
+def process_search_response(method, album, metadata, linked_files, response, reply, error):
     if error or (response and not response.get("id", False)):
         album._requests -= 1
         album._finalize_loading(None)
@@ -109,13 +128,26 @@ def process_search_response(album, metadata, linked_files, response, reply, erro
         )
         metadata["lyrics"] = lyrics
         for file in linked_files:
-            file.metadata["lyrics"] = lyrics
+            file_lrc = f"{file.metadata['~dirname']}/{file.metadata['~filename']}.lrc"
+            set_file_lyrics = not method == "search_on_load" 
+            if (file.metadata.get("lyrics") or os.path.exists(file_lrc)) and not config.setting["auto_overwrite"] \
+                and not method == "search_on_load":
+                title = "Overwrite file lyrics?"
+                desc = (
+                    'Lyrics already exist for "{}".\n\n'
+                    "Overwrite?"
+                ).format(file.metadata.get("title", "<file>"))
+                parent = getattr(file, "tagger", None)
+                # if file.tagger has a window, you could use file.tagger.window as parent. Use None as fallback.
+                if not confirm_replace(getattr(parent, "window", None), title, desc):
+                    set_file_lyrics = False
 
-            if config.setting["save_lrc_file"]:
-                file_lrc = f"{file.metadata['~dirname']}/{file.metadata['~filename']}.lrc"
-                if not os.path.exists(file_lrc):
-                    with open(file_lrc, "w") as f:
-                        f.write(lyrics)
+            if set_file_lyrics:
+                file.metadata["lyrics"] = lyrics
+                if config.setting["save_lrc_file"]:
+                    if not os.path.exists(file_lrc):
+                        with open(file_lrc, "w") as f:
+                            f.write(lyrics)
         log.debug(
             '{}: lyrics loaded for track "{}" by {}'.format(
                 PLUGIN_NAME, metadata["title"], metadata["artist"]
@@ -143,6 +175,7 @@ class LrclibLyricsOptionsPage(OptionsPage):
 
     options = [
         BoolOption("setting", "search_on_load", False),
+        BoolOption("setting", "auto_overwrite", False),
         BoolOption("setting", "save_lrc_file", True)
     ]
 
@@ -152,6 +185,9 @@ class LrclibLyricsOptionsPage(OptionsPage):
 
         self.auto_search = QtWidgets.QCheckBox("Search for lyrics when loading tracks", self)
         self.box.addWidget(self.auto_search)
+
+        self.auto_overwrite = QtWidgets.QCheckBox("Auto overwrite existing lyrics", self)
+        self.box.addWidget(self.auto_overwrite)
 
         self.save_lrc = QtWidgets.QCheckBox("Save .lrc file alongside audio files", self)
         self.box.addWidget(self.save_lrc)
@@ -172,10 +208,12 @@ class LrclibLyricsOptionsPage(OptionsPage):
 
     def load(self):
         self.auto_search.setChecked(config.setting["search_on_load"])
+        self.auto_overwrite.setChecked(config.setting["auto_overwrite"])
         self.save_lrc.setChecked(config.setting["save_lrc_file"])
 
     def save(self):
         config.setting["search_on_load"] = self.auto_search.isChecked()
+        config.setting["auto_overwrite"] = self.auto_overwrite.isChecked()
         config.setting["save_lrc_file"] = self.save_lrc.isChecked()
 
 class LrclibLyricsMetadataProcessor:
@@ -192,7 +230,7 @@ class LrclibLyricsMetadataProcessor:
                 if track['~length']:
                     length = track.metadata["~length"].split(":")
                     length = int(length[0]) * 60 + int(length[1])
-                search_for_lyrics(album, metadata, track.linked_files, length)
+                search_for_lyrics("search_on_load", album, metadata, track.linked_files, length)
             except Exception as err:
                 log.error(err)
 
@@ -207,7 +245,7 @@ class LrclibLyricsTrackAction(BaseAction):
             if track.metadata["~length"]:
                 length = track.metadata["~length"].split(":")
                 length = int(length[0]) * 60 + int(length[1])
-            search_for_lyrics(track.album, track.metadata, track.linked_files, length)
+            search_for_lyrics("auto_search", track.album, track.metadata, track.linked_files, length)
         except Exception as err:
             log.error(err)
 
