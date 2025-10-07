@@ -77,7 +77,7 @@ def truncate_text(text, max_lines=5, max_chars_per_line=46):
         lines[-1] = lines[-1].rstrip() + " …"
     return "\n".join(lines)
 
-def parse_duration(time_str):
+def parse_duration(time_str:str):
     parts = time_str.strip().split(":")
     if not all(p.isdigit() for p in parts):
         raise ValueError(f"Invalid time format: {time_str}")
@@ -419,8 +419,7 @@ class LrcLibLyricsGet(BaseAction):
                 return
             length = None
             if track.metadata["~length"]:
-                length = track.metadata["~length"].split(":")
-                length = parse_duration(length)
+                length = parse_duration(track.metadata["~length"])
             get_lyrics("get", track.album, track.metadata, track.linked_files, length)
         except Exception as err:
             log.error(err)
