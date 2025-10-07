@@ -84,14 +84,14 @@ def parse_duration(time_str:str):
 
     if len(parts) == 2:
         minutes, seconds = map(int, parts)
-        total_minutes = minutes + seconds / 60
+        total_seconds = minutes * 60 + seconds
     elif len(parts) == 3:
         hours, minutes, seconds = map(int, parts)
-        total_minutes = hours * 60 + minutes + seconds / 60
+        total_seconds = hours * 60**2 + minutes * 60 + seconds
     else:
         raise ValueError(f"Unsupported time format: {time_str}")
 
-    return total_minutes
+    return total_seconds
 
 
 
