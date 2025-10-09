@@ -4,12 +4,12 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
 
 
 ## Features
-- 🎵 Fetches lyrics from LRCLIB's crowdsourced database
+- 🎵 Fetches lyrics from LRCLIB's crowdsourced database — either **manually** or **automatically**
 - 💾 Saves lyrics to:
   - `lyrics` metadata tag (for players like MusicBee/iTunes)
   - `.lrc` files (for Jellyfin, Plex, Kodi, etc.)
-- ⚡ Optional automatic lyric fetching on track load
-- 🚫 Never overwrites existing `.lrc` files
+- ⚡ Optionally enable automatic lyric fetching whenever a track is loaded
+- 🚫 Receive a confirmation prompt before overwriting existing `.lrc` files or `lyrics` metadata
 
 ## Installation
 1. **Download Plugin Files**:
@@ -26,8 +26,11 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
      - Enable auto-fetch:  
        `Options` → `Plugins` → `LRCLIB Lyrics` → Check "Search for lyrics when loading tracks"
 
-   - **Manual Fetching**:  
-     - Right-click track/album → `Search for lyrics with LRCLIB...`
+   - **Automatic Fetching**:  
+     - Right-click track/album → `Get lyrics automatically with LRCLIB`
+     
+   - **Manual Fetching**:
+     - Right click track/album → `Search lyrics manually with LRCLIB`
 
 
 2. **Save Lyrics to Files**
@@ -48,6 +51,7 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
 ## Notes
 - Lyrics are saved in UTF-8 encoding
 - `.lrc` files match your audio filenames automatically
+- Fetching on track load **never** overwrites existing lyrics
 
 ## Disclaimer
 This plugin is unofficial. Always verify lyrics accuracy.
