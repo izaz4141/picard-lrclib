@@ -10,7 +10,7 @@ import os, json
 from PyQt5.QtNetwork import QNetworkRequest
 
 from picard import config, log
-from picard.metadata import register_track_metadata_processor
+from picard.file import register_file_post_addition_to_track_processor
 from picard.track import Track
 from picard.album import Album
 from picard.ui.itemviews import (
@@ -37,7 +37,7 @@ PLUGIN_DESCRIPTION = (
     "<br/>"
     "<i>Based on Dylancyclone's plugin</i>"
 )
-PLUGIN_VERSION = "1.1.0"
+PLUGIN_VERSION = "1.1.1"
 PLUGIN_API_VERSIONS = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
 PLUGIN_LICENSE = "MIT"
 PLUGIN_LICENSE_URL = "https://opensource.org/licenses/MIT"
@@ -303,27 +303,37 @@ def process_response(method, album, metadata, linked_files, response, reply, err
             if response.get("syncedLyrics")
             else response["plainLyrics"]
         )
-        metadata["lyrics"] = lyrics
         for file in linked_files:
             file_lrc = f"{file.metadata['~dirname']}/{file.metadata['~filename']}.lrc"
-            set_file_lyrics = not method == "search_on_load" 
-            if (file.metadata.get("lyrics") or os.path.exists(file_lrc)) and not config.setting["auto_overwrite"] \
-                and not method == "search_on_load":
-                title = "Overwrite file lyrics?"
-                desc = (
-                    'Overwrite Lyrics for "{}".\n\n'
-                    "{}"
-                ).format(file.metadata.get("title", "<file>"), truncate_text(lyrics, 5, 42))
-                parent = getattr(file, "tagger", None)
-                if not confirm_replace(getattr(parent, "window", None), title, desc):
-                    set_file_lyrics = False
+            has_metadata_lyrics = bool(file.metadata.get("lyrics"))
+            has_lrc_file = os.path.exists(file_lrc)
+            
+            if has_metadata_lyrics and not has_lrc_file and config.setting["save_lrc_file"]:
+                lyrics = file.metadata.get("lyrics")
+            elif has_lrc_file and not has_metadata_lyrics:
+                try:
+                    with open(file_lrc, "r") as f:
+                        lyrics = f.read()
+                except Exception as e:
+                    log.error(f"{PLUGIN_NAME}: Failed to read existing .lrc file: {e}")
+            elif has_metadata_lyrics and has_lrc_file and not config.setting["auto_overwrite"]:
+                if method == "search_on_load":
+                    return
+                else:
+                    title = "Overwrite file lyrics?"
+                    desc = (
+                        'Overwrite Lyrics for "{}".\n\n'
+                        "{}"
+                    ).format(file.metadata.get("title", "<file>"), truncate_text(lyrics, 5, 42))
+                    parent = getattr(file, "tagger", None)
+                    if not confirm_replace(getattr(parent, "window", None), title, desc):
+                        return
 
-            if set_file_lyrics:
-                file.metadata["lyrics"] = lyrics
-                if config.setting["save_lrc_file"]:
-                    if not os.path.exists(file_lrc):
-                        with open(file_lrc, "w") as f:
-                            f.write(lyrics)
+            file.metadata["lyrics"] = lyrics
+            if config.setting["save_lrc_file"]:
+                if not os.path.exists(file_lrc):
+                    with open(file_lrc, "w") as f:
+                        f.write(lyrics)
         log.debug(
             '{}: lyrics loaded for track "{}" by {}'.format(
                 PLUGIN_NAME, metadata["title"], metadata["artist"]
@@ -348,6 +358,8 @@ class LrclibLyricsOptionsPage(OptionsPage):
     NAME = "lrclib_lyrics"
     TITLE = "LRCLIB Lyrics"
     PARENT = "plugins"
+    
+    AUDIO_EXTENSIONS = {'.mp3', '.flac', '.m4a', '.ogg', '.opus', '.wav', '.wma', '.aac', '.ape', '.mpc', '.wv'}
 
     options = [
         BoolOption("setting", "search_on_load", False),
@@ -367,6 +379,17 @@ class LrclibLyricsOptionsPage(OptionsPage):
 
         self.save_lrc = QtWidgets.QCheckBox("Save .lrc file alongside audio files", self)
         self.box.addWidget(self.save_lrc)
+        
+        self.box.addSpacing(20)
+        
+        cleanup_label = QtWidgets.QLabel("Cleanup Tools:", self)
+        cleanup_label.setStyleSheet("font-weight: bold;")
+        self.box.addWidget(cleanup_label)
+        
+        self.cleanup_button = QtWidgets.QPushButton("Clean Orphaned LRC Files", self)
+        self.cleanup_button.setToolTip("Recursively scan a directory for .lrc files without matching audio files")
+        self.cleanup_button.clicked.connect(self.clean_orphaned_lrc_files)
+        self.box.addWidget(self.cleanup_button)
 
         self.spacer = QtWidgets.QSpacerItem(
             0, 0, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding
@@ -391,24 +414,90 @@ class LrclibLyricsOptionsPage(OptionsPage):
         config.setting["search_on_load"] = self.auto_search.isChecked()
         config.setting["auto_overwrite"] = self.auto_overwrite.isChecked()
         config.setting["save_lrc_file"] = self.save_lrc.isChecked()
+    
+    def clean_orphaned_lrc_files(self):
+        try:
+            parent = QtWidgets.QApplication.activeWindow()
+            
+            root_dir = QtWidgets.QFileDialog.getExistingDirectory(
+                parent,
+                "Select Music Library Root Directory",
+                "",
+                QtWidgets.QFileDialog.ShowDirsOnly | QtWidgets.QFileDialog.DontResolveSymlinks
+            )
+            
+            if not root_dir:
+                log.info(f"{PLUGIN_NAME}: User cancelled directory selection")
+                return
+            
+            log.info(f"{PLUGIN_NAME}: Starting recursive scan of {root_dir}")
+            orphaned_count = self._clean_directory_recursive(root_dir)
+            
+            if orphaned_count > 0:
+                QtWidgets.QMessageBox.information(
+                    parent,
+                    "Cleanup Complete",
+                    f"Removed {orphaned_count} orphaned .lrc file{'s' if orphaned_count != 1 else ''}"
+                )
+                log.info(f"{PLUGIN_NAME}: Cleaned {orphaned_count} orphaned .lrc files")
+            else:
+                QtWidgets.QMessageBox.information(
+                    parent,
+                    "Cleanup Complete",
+                    "No orphaned .lrc files found"
+                )
+                log.info(f"{PLUGIN_NAME}: No orphaned .lrc files found")
+                
+        except Exception as err:
+            log.error(f"{PLUGIN_NAME}: Error cleaning orphaned files: {err}", exc_info=True)
+    
+    def _clean_directory_recursive(self, root_dir):
+        if not os.path.isdir(root_dir):
+            log.warning(f"{PLUGIN_NAME}: Directory does not exist: {root_dir}")
+            return 0
+        
+        orphaned_count = 0
+        
+        try:
+            for dirpath, dirnames, filenames in os.walk(root_dir):
+                lrc_files = [f for f in filenames if f.lower().endswith('.lrc')]
+                
+                for lrc_file in lrc_files:
+                    lrc_path = os.path.join(dirpath, lrc_file)
+                    base_name = os.path.splitext(lrc_file)[0]
+                    
+                    audio_file_exists = False
+                    for ext in self.AUDIO_EXTENSIONS:
+                        audio_path = os.path.join(dirpath, base_name + ext)
+                        if os.path.exists(audio_path):
+                            audio_file_exists = True
+                            break
+                    
+                    if not audio_file_exists:
+                        try:
+                            os.remove(lrc_path)
+                            orphaned_count += 1
+                            log.debug(f"{PLUGIN_NAME}: Deleted orphaned file: {lrc_path}")
+                        except Exception as e:
+                            log.error(f"{PLUGIN_NAME}: Failed to delete {lrc_path}: {e}")
+        
+        except Exception as e:
+            log.error(f"{PLUGIN_NAME}: Error scanning directory {root_dir}: {e}")
+        
+        return orphaned_count
 
-class LrclibLyricsMetadataProcessor:
-
-    def __init__(self):
-        super().__init__()
-
-    def process_metadata(self, album, metadata, track, release):
-        if config.setting["search_on_load"]:
-            try:
-                if not track.linked_files:
-                    return
-                length = None
-                if track['~length']:
-                    length = track.metadata["~length"].split(":")
-                    length = int(length[0]) * 60 + int(length[1])
-                get_lyrics("search_on_load", album, metadata, track.linked_files, length)
-            except Exception as err:
-                log.error(err)
+def search_on_load(track, file):
+    if not config.setting["search_on_load"]:
+        return
+    try:
+        if not track.linked_files:
+            return
+        length = None
+        if track.metadata["~length"]:
+            length = parse_duration(track.metadata["~length"])
+        get_lyrics("search_on_load", track.album, track.metadata, track.linked_files, length)
+    except Exception as err:
+        log.error(f"{PLUGIN_NAME}: Error in search_on_load: {err}")
 
 class LrcLibLyricsGet(BaseAction):
     NAME = "Get lyrics automatically with LRCLIB"
@@ -456,7 +545,7 @@ class LrcLibLyricsSearch(BaseAction):
                     self.execute_on_track(track)
 
 
-register_track_metadata_processor(LrclibLyricsMetadataProcessor().process_metadata)
+register_file_post_addition_to_track_processor(search_on_load)
 register_track_action(LrcLibLyricsSearch())
 register_album_action(LrcLibLyricsSearch())
 register_track_action(LrcLibLyricsGet())
