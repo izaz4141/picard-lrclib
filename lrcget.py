@@ -41,6 +41,7 @@ PLUGIN_VERSION = "1.1.1"
 PLUGIN_API_VERSIONS = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
 PLUGIN_LICENSE = "MIT"
 PLUGIN_LICENSE_URL = "https://opensource.org/licenses/MIT"
+PLUGIN_USER_GUIDE_URL = "https://github.com/izaz4141/picard-lrclib"
 
 lrclib_get_url = "https://lrclib.net/api/get"
 lrclib_search_url = "https://lrclib.net/api/search"
