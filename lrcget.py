@@ -304,7 +304,7 @@ def process_response(method, album, metadata, linked_files, response, reply, err
 
         if (response["instrumental"]  or \
             "(Instrumental)" in response["trackName"]) \
-            and config.setting["ignore_instrumental"]:
+            and (config.setting["ignore_instrumental"] or method == "search"):
             lyrics = None
         elif response.get("syncedLyrics"):
             lyrics = response["syncedLyrics"]
