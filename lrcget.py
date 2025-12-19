@@ -37,7 +37,7 @@ PLUGIN_DESCRIPTION = (
     "<br/>"
     "<i>Based on Dylancyclone's plugin</i>"
 )
-PLUGIN_VERSION = "1.1.1"
+PLUGIN_VERSION = "1.1.2"
 PLUGIN_API_VERSIONS = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
 PLUGIN_LICENSE = "MIT"
 PLUGIN_LICENSE_URL = "https://opensource.org/licenses/MIT"
@@ -300,10 +300,15 @@ def process_response(method, album, metadata, linked_files, response, reply, err
                 return
 
         lyrics = (
-            response["syncedLyrics"]
-            if response.get("syncedLyrics")
-            else response["plainLyrics"]
+            None if response["instrumental"] and config.setting["ignore_instrumental"]
+            else (
+                response["syncedLyrics"] if response.get("syncedLyrics")
+                else response["plainLyrics"]
+            )
         )
+        if not lyrics:
+            return
+
         for file in linked_files:
             file_lrc = f"{file.metadata['~dirname']}/{file.metadata['~filename']}.lrc"
             has_metadata_lyrics = bool(file.metadata.get("lyrics"))
@@ -365,7 +370,8 @@ class LrclibLyricsOptionsPage(OptionsPage):
     options = [
         BoolOption("setting", "search_on_load", False),
         BoolOption("setting", "auto_overwrite", False),
-        BoolOption("setting", "save_lrc_file", True)
+        BoolOption("setting", "save_lrc_file", True),
+        BoolOption("setting", "ignore_instrumental", False)
     ]
 
     def __init__(self, parent=None):
@@ -380,6 +386,9 @@ class LrclibLyricsOptionsPage(OptionsPage):
 
         self.save_lrc = QtWidgets.QCheckBox("Save .lrc file alongside audio files", self)
         self.box.addWidget(self.save_lrc)
+
+        self.ignore_instrumental = QtWidgets.QCheckBox("Ignore instrumental lyrics", self)
+        self.box.addWidget(self.ignore_instrumental)
         
         self.box.addSpacing(20)
         
@@ -410,11 +419,13 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.auto_search.setChecked(config.setting["search_on_load"])
         self.auto_overwrite.setChecked(config.setting["auto_overwrite"])
         self.save_lrc.setChecked(config.setting["save_lrc_file"])
+        self.ignore_instrumental.setChecked(config.setting["ignore_instrumental"])
 
     def save(self):
         config.setting["search_on_load"] = self.auto_search.isChecked()
         config.setting["auto_overwrite"] = self.auto_overwrite.isChecked()
         config.setting["save_lrc_file"] = self.save_lrc.isChecked()
+        config.setting["ignore_instrumental"] = self.ignore_instrumental.isChecked()
     
     def clean_orphaned_lrc_files(self):
         try:
