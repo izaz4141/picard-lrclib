@@ -317,7 +317,9 @@ def process_response(method, album, metadata, linked_files, response, reply, err
 
         for file in linked_files:
             ext = ".txt" if (is_plain and config.setting["plain_as_txt"]) else ".lrc"
-            file_lrc = f"{file.metadata['~dirname']}/{file.metadata['~filename']}{ext}"
+            base_path = f"{file.metadata['~dirname']}/{file.metadata['~filename']}"
+            file_lrc = f"{base_path}{ext}"
+            
             has_metadata_lyrics = bool(file.metadata.get("lyrics"))
             has_lrc_file = os.path.exists(file_lrc)
             
@@ -347,9 +349,16 @@ def process_response(method, album, metadata, linked_files, response, reply, err
 
             file.metadata["lyrics"] = lyrics
             if config.setting["save_lrc_file"]:
-                if not os.path.exists(file_lrc):
-                    with open(file_lrc, "w") as f:
-                        f.write(lyrics)
+                for old_ext in [".txt", ".lrc"]:
+                    old_file = base_path + old_ext
+                    if os.path.exists(old_file):
+                        try:
+                            os.remove(old_file)
+                        except Exception as e:
+                            log.error(f"{PLUGIN_NAME}: Failed to delete {old_file}: {e}")
+                
+                with open(file_lrc, "w") as f:
+                    f.write(lyrics)
         log.debug(
             '{}: lyrics loaded for track "{}" by {}'.format(
                 PLUGIN_NAME, metadata["title"], metadata["artist"]
