@@ -299,18 +299,23 @@ def process_response(method, album, metadata, linked_files, response, reply, err
             if response is None:
                 return
 
-        lyrics = (
-            None if response["instrumental"] and config.setting["ignore_instrumental"]
-            else (
-                response["syncedLyrics"] if response.get("syncedLyrics")
-                else response["plainLyrics"]
-            )
-        )
+        lyrics = None
+        is_plain = False
+
+        if response["instrumental"] and config.setting["ignore_instrumental"]:
+            lyrics = None
+        elif response.get("syncedLyrics"):
+            lyrics = response["syncedLyrics"]
+            is_plain = False
+        else:
+            lyrics = response["plainLyrics"]
+            is_plain = True
         if not lyrics:
             return
 
         for file in linked_files:
-            file_lrc = f"{file.metadata['~dirname']}/{file.metadata['~filename']}.lrc"
+            ext = ".txt" if (is_plain and config.setting["plain_as_txt"]) else ".lrc"
+            file_lrc = f"{file.metadata['~dirname']}/{file.metadata['~filename']}{ext}"
             has_metadata_lyrics = bool(file.metadata.get("lyrics"))
             has_lrc_file = os.path.exists(file_lrc)
             
@@ -365,13 +370,19 @@ class LrclibLyricsOptionsPage(OptionsPage):
     TITLE = "LRCLIB Lyrics"
     PARENT = "plugins"
     
-    AUDIO_EXTENSIONS = {'.mp3', '.flac', '.m4a', '.ogg', '.opus', '.wav', '.wma', '.aac', '.ape', '.mpc', '.wv'}
+    AUDIO_EXTENSIONS = {
+        'aac', 'ac3', 'aif', 'aifc', 'aiff', 'ape', 'asf', 'dff', 'dsf', 
+        'eac3', 'flac', 'kar', 'm2a', 'ofr', 'ofs', 'oga', 'ogg', 'oggflac', 
+        'oggtheora', 'ogv', 'ogx', 'opus', 'spx', 'tak', 'tta', 'wav', 'webm', 
+        'wma', 'wmv', 'wv', 'xwma'
+    }
 
     options = [
         BoolOption("setting", "search_on_load", False),
         BoolOption("setting", "auto_overwrite", False),
         BoolOption("setting", "save_lrc_file", True),
-        BoolOption("setting", "ignore_instrumental", False)
+        BoolOption("setting", "ignore_instrumental", False),
+        BoolOption("setting", "plain_as_txt", False)
     ]
 
     def __init__(self, parent=None):
@@ -389,6 +400,9 @@ class LrclibLyricsOptionsPage(OptionsPage):
 
         self.ignore_instrumental = QtWidgets.QCheckBox("Ignore instrumental lyrics", self)
         self.box.addWidget(self.ignore_instrumental)
+
+        self.plain_as_txt = QtWidgets.QCheckBox("Save plain lyrics as .txt", self)
+        self.box.addWidget(self.plain_as_txt)
         
         self.box.addSpacing(20)
         
@@ -420,12 +434,14 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.auto_overwrite.setChecked(config.setting["auto_overwrite"])
         self.save_lrc.setChecked(config.setting["save_lrc_file"])
         self.ignore_instrumental.setChecked(config.setting["ignore_instrumental"])
+        self.plain_as_txt.setChecked(config.setting["plain_as_txt"])
 
     def save(self):
         config.setting["search_on_load"] = self.auto_search.isChecked()
         config.setting["auto_overwrite"] = self.auto_overwrite.isChecked()
         config.setting["save_lrc_file"] = self.save_lrc.isChecked()
         config.setting["ignore_instrumental"] = self.ignore_instrumental.isChecked()
+        config.setting["plain_as_txt"] = self.plain_as_txt.isChecked()
     
     def clean_orphaned_lrc_files(self):
         try:
