@@ -329,7 +329,10 @@ def process_response(method, album, metadata, linked_files, response, reply, err
                         lyrics = f.read()
                 except Exception as e:
                     log.error(f"{PLUGIN_NAME}: Failed to read existing .lrc file: {e}")
-            elif has_metadata_lyrics and has_lrc_file and not config.setting["auto_overwrite"]:
+            elif (has_metadata_lyrics and has_lrc_file \
+                or has_metadata_lyrics and not config.setting["save_lrc_file"]) \
+                and not config.setting["auto_overwrite"]:
+                
                 if method == "search_on_load":
                     return
                 else:
