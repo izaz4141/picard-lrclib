@@ -303,7 +303,7 @@ def process_response(method, album, metadata, linked_files, response, reply, err
         is_plain = False
 
         if (response["instrumental"]  or \
-            any("(Instrumental)" in file.metadata["~filename"] for file in linked_files)) \
+            "(Instrumental)" in response["trackName"]) \
             and config.setting["ignore_instrumental"]:
             lyrics = None
         elif response.get("syncedLyrics"):
@@ -332,7 +332,7 @@ def process_response(method, album, metadata, linked_files, response, reply, err
             elif (has_metadata_lyrics and has_lrc_file \
                 or has_metadata_lyrics and not config.setting["save_lrc_file"]) \
                 and not config.setting["auto_overwrite"]:
-                
+
                 if method == "search_on_load":
                     return
                 else:
