@@ -39,7 +39,7 @@ PLUGIN_DESCRIPTION = (
     "<br/>"
     "<i>Based on Dylancyclone's plugin</i>"
 )
-PLUGIN_VERSION = "1.1.2"
+PLUGIN_VERSION = "1.1.3"
 PLUGIN_API_VERSIONS = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
 PLUGIN_LICENSE = "MIT"
 PLUGIN_LICENSE_URL = "https://opensource.org/licenses/MIT"
