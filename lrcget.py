@@ -39,7 +39,7 @@ PLUGIN_DESCRIPTION = (
     "<br/>"
     "<i>Based on Dylancyclone's plugin</i>"
 )
-PLUGIN_VERSION = "1.1.3"
+PLUGIN_VERSION = "1.1.4"
 PLUGIN_API_VERSIONS = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
 PLUGIN_LICENSE = "MIT"
 PLUGIN_LICENSE_URL = "https://opensource.org/licenses/MIT"
@@ -358,7 +358,7 @@ def process_response(method, album, metadata, linked_files, response, reply, err
                 lyrics = file.metadata.get("lyrics")
             elif has_lrc_file and not has_metadata_lyrics:
                 try:
-                    with open(file_lrc, "r") as f:
+                    with open(file_lrc, "r", "utf-8") as f:
                         lyrics = f.read()
                 except Exception as e:
                     log.error(f"{PLUGIN_NAME}: Failed to read existing .lrc file: {e}")
@@ -395,7 +395,7 @@ def process_response(method, album, metadata, linked_files, response, reply, err
                             )
 
                 try:
-                    with open(file_lrc, "w") as f:
+                    with open(file_lrc, "w", "utf-8") as f:
                         f.write(lyrics)
                 except Exception as e:
                     log.error(f"{PLUGIN_NAME}: Failed to write .lrc file: {e}")
