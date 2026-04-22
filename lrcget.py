@@ -358,7 +358,7 @@ def process_response(method, album, metadata, linked_files, response, reply, err
                 lyrics = file.metadata.get("lyrics")
             elif has_lrc_file and not has_metadata_lyrics:
                 try:
-                    with open(file_lrc, "r", "utf-8") as f:
+                    with open(file_lrc, "r", encoding="utf-8") as f:
                         lyrics = f.read()
                 except Exception as e:
                     log.error(f"{PLUGIN_NAME}: Failed to read existing .lrc file: {e}")
@@ -395,14 +395,16 @@ def process_response(method, album, metadata, linked_files, response, reply, err
                             )
 
                 try:
-                    with open(file_lrc, "w", "utf-8") as f:
+                    with open(file_lrc, "w", encoding="utf-8") as f:
                         f.write(lyrics)
                 except Exception as e:
                     log.error(f"{PLUGIN_NAME}: Failed to write .lrc file: {e}")
                     parent = getattr(file, "tagger", None)
                     fallback_parent = QtWidgets.QApplication.activeWindow()
                     QtWidgets.QMessageBox.critical(
-                        getattr(parent, "window", fallback_parent) if parent else fallback_parent,
+                        getattr(parent, "window", fallback_parent)
+                        if parent
+                        else fallback_parent,
                         "Failed to Save LRC File",
                         f"Could not save lyrics file:\n\n{file_lrc}\n\nError: {e}",
                     )
@@ -431,10 +433,37 @@ class LrclibLyricsOptionsPage(OptionsPage):
     PARENT = "plugins"
 
     AUDIO_EXTENSIONS = {
-        'aac', 'ac3', 'aif', 'aifc', 'aiff', 'ape', 'asf', 'dff', 'dsf', 
-        'eac3', 'flac', 'kar', 'm2a', 'ofr', 'ofs', 'oga', 'ogg', 'oggflac', 
-        'oggtheora', 'ogv', 'ogx', 'opus', 'spx', 'tak', 'tta', 'wav', 'webm', 
-        'wma', 'wmv', 'wv', 'xwma'
+        "aac",
+        "ac3",
+        "aif",
+        "aifc",
+        "aiff",
+        "ape",
+        "asf",
+        "dff",
+        "dsf",
+        "eac3",
+        "flac",
+        "kar",
+        "m2a",
+        "ofr",
+        "ofs",
+        "oga",
+        "ogg",
+        "oggflac",
+        "oggtheora",
+        "ogv",
+        "ogx",
+        "opus",
+        "spx",
+        "tak",
+        "tta",
+        "wav",
+        "webm",
+        "wma",
+        "wmv",
+        "wv",
+        "xwma",
     }
 
     options = [
