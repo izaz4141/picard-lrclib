@@ -36,7 +36,13 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install PyQt5
-          pip install picard
+
+      - name: Clone picard
+        run: |
+          git clone --depth 1 https://github.com/metabrainz/picard.git picard-lib
+
+      - name: Set PYTHONPATH
+        run: echo "PYTHONPATH=${{ github.workspace }}/picard-lib:$PYTHONPATH" >> $GITHUB_ENV
 
       - name: Install linting tools
         run: pip install ruff mypy
