@@ -232,7 +232,7 @@ def _request(ws, url, callback, queryargs=None, important=False):
         priority=True,
         important=important,
         queryargs=queryargs,
-        cacheloadcontrol=QNetworkRequest.PreferCache,
+        cacheloadcontrol=QNetworkRequest.PreferNetwork,
     )
 
 
@@ -323,8 +323,6 @@ def process_response(method, album, metadata, linked_files, response, reply, err
     if error or (
         response and isinstance(response, dict) and not response.get("id", False)
     ):
-        album._requests -= 1
-        album._finalize_loading(None)
         log.warning(
             '{}: lyrics NOT found for track "{}" by {}'.format(
                 PLUGIN_NAME, metadata["title"], metadata["artist"]
