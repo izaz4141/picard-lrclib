@@ -10,9 +10,6 @@ from urllib.request import (
     urlopen,
 )
 
-from PyQt5 import QtWidgets
-from PyQt5.QtNetwork import QNetworkRequest
-
 from picard import config, log
 from picard.album import Album
 from picard.config import BoolOption
@@ -27,6 +24,8 @@ from picard.ui.options import (
     OptionsPage,
     register_options_page,
 )
+from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtNetwork import QNetworkRequest
 
 PLUGIN_NAME = "LRCLIB Lyrics"
 PLUGIN_AUTHOR = "Glicole"
@@ -39,7 +38,7 @@ PLUGIN_DESCRIPTION = (
     "<br/>"
     "<i>Based on Dylancyclone's plugin</i>"
 )
-PLUGIN_VERSION = "1.1.4"
+PLUGIN_VERSION = "1.1.5"
 PLUGIN_API_VERSIONS = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
 PLUGIN_LICENSE = "MIT"
 PLUGIN_LICENSE_URL = "https://opensource.org/licenses/MIT"
@@ -133,14 +132,19 @@ def show_search_table(parent, query, response, request_callback):
     layout.addLayout(search_layout)
 
     table = QtWidgets.QTableWidget(dialog)
-    table.setColumnCount(5)
-    table.setHorizontalHeaderLabels(["Name", "Artist", "Length", "Album", "Synced"])
+    table.setColumnCount(6)
+    table.setHorizontalHeaderLabels(
+        ["#", "Name", "Artist", "Length", "Album", "Synced"]
+    )
+    table.verticalHeader().setVisible(False)
     header = table.horizontalHeader()
-    header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
-    header.setSectionResizeMode(1, QtWidgets.QHeaderView.Interactive)
-    header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
-    header.setSectionResizeMode(3, QtWidgets.QHeaderView.Interactive)
-    header.setSectionResizeMode(4, QtWidgets.QHeaderView.ResizeToContents)
+    header.setDefaultAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
+    header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+    header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+    header.setSectionResizeMode(2, QtWidgets.QHeaderView.Interactive)
+    header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
+    header.setSectionResizeMode(4, QtWidgets.QHeaderView.Interactive)
+    header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
     table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
     table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
     table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -152,20 +156,35 @@ def show_search_table(parent, query, response, request_callback):
     layout.addWidget(button_box)
 
     def populate_table(response):
+        table.setSortingEnabled(False)
         table.setRowCount(0)
         if not response:
             return
         table.setRowCount(len(response))
         for row, item in enumerate(response):
+            num_item = QtWidgets.QTableWidgetItem()
+            num_item.setTextAlignment(QtCore.Qt.AlignCenter)
+            num_item.setData(QtCore.Qt.EditRole, row + 1)
+            table.setItem(row, 0, num_item)
+
+            has_synced = item.get("syncedLyrics")
             values = [
                 item.get("trackName", ""),
                 item.get("artistName", ""),
                 format_durasi(item.get("duration", 0)),
                 item.get("albumName", ""),
-                "✓" if item.get("syncedLyrics") else "✕",
+                "V" if has_synced else "X",
             ]
-            for col, val in enumerate(values):
-                table.setItem(row, col, QtWidgets.QTableWidgetItem(str(val)))
+            for col, val in enumerate(values, start=1):
+                cell_item = QtWidgets.QTableWidgetItem(str(val))
+                if col in [3, 5]:
+                    cell_item.setTextAlignment(QtCore.Qt.AlignCenter)
+                    if col == 5:
+                        cell_item.setForeground(
+                            QtGui.QColor("#2ecc71" if has_synced else "#e74c3c")
+                        )
+                table.setItem(row, col, cell_item)
+        table.setSortingEnabled(True)
 
     populate_table(response)
 
