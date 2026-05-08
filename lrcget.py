@@ -679,8 +679,9 @@ def get_on_save(file: File) -> None:
     if not config.setting["get_on_save"]:
         return
     if file.filename in files_processing:
-        files_processing.discard(file.filename)
-        return
+        return files_processing.discard(
+            file.filename
+        )  # Picard only allow one concurrent save_hook
     try:
         files_processing.add(file.filename)
         album = file.parent.album  # type: ignore
