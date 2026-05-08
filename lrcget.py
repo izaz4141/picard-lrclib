@@ -419,12 +419,13 @@ def process_response(
                         f.write(lyrics)
                 except Exception as e:
                     log.error(f"{PLUGIN_NAME}: Failed to write .lrc file: {e}")
-                    parent = getattr(file, "tagger", None)
-                    fallback_parent = QtWidgets.QApplication.activeWindow()
+                    parent_widget = getattr(
+                        getattr(file, "tagger", None), "window", None
+                    )
+                    if not isinstance(parent_widget, QtWidgets.QWidget):
+                        parent_widget = QtWidgets.QApplication.activeWindow()
                     QtWidgets.QMessageBox.critical(
-                        getattr(parent, "window", fallback_parent)
-                        if parent
-                        else fallback_parent,
+                        parent_widget,
                         "Failed to Save LRC File",
                         f"Could not save lyrics file:\n\n{file_lrc}\n\nError: {e}",
                     )
@@ -553,25 +554,12 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.box.addWidget(self.description)
 
     def load(self):
-        self.get_on_load.setChecked(
-            config.setting["get_on_load"] or PLUGIN_OPTIONS["get_on_load"]
-        )
-        self.get_on_save.setChecked(
-            config.setting["get_on_save"] or PLUGIN_OPTIONS["get_on_save"]
-        )
-        self.auto_overwrite.setChecked(
-            config.setting["auto_overwrite"] or PLUGIN_OPTIONS["auto_overwrite"]
-        )
-        self.save_lrc.setChecked(
-            config.setting["save_lrc_file"] or PLUGIN_OPTIONS["save_lrc_file"]
-        )
-        self.ignore_instrumental.setChecked(
-            config.setting["ignore_instrumental"]
-            or PLUGIN_OPTIONS["ignore_instrumental"]
-        )
-        self.plain_as_txt.setChecked(
-            config.setting["plain_as_txt"] or PLUGIN_OPTIONS["plain_as_txt"]
-        )
+        self.get_on_load.setChecked(bool(config.setting["get_on_load"]))
+        self.get_on_save.setChecked(bool(config.setting["get_on_save"]))
+        self.auto_overwrite.setChecked(bool(config.setting["auto_overwrite"]))
+        self.save_lrc.setChecked(bool(config.setting["save_lrc_file"]))
+        self.ignore_instrumental.setChecked(bool(config.setting["ignore_instrumental"]))
+        self.plain_as_txt.setChecked(bool(config.setting["plain_as_txt"]))
 
     def save(self):
         config.setting["get_on_load"] = self.get_on_load.isChecked()
