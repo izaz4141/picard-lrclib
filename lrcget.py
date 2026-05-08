@@ -277,13 +277,6 @@ def fetch_lyrics(
     artist = metadata["artist"]
     title = metadata["title"]
     albumName = metadata["album"]
-    if not (artist and title and albumName):
-        log.debug(
-            "{}: artist, title, album name, and duration are required to obtain lyrics".format(
-                PLUGIN_NAME
-            )
-        )
-        return
 
     if method == "search":
         url = lrclib_search_url
@@ -332,6 +325,9 @@ def process_response(
                 PLUGIN_NAME, metadata["title"], metadata["artist"]
             )
         )
+        if method == "get_on_save":
+            for file in linked_files:
+                files_processing.discard(file.filename)
         album._requests -= 1
         album._finalize_loading(None)
         return
