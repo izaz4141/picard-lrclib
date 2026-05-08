@@ -13,7 +13,12 @@ from urllib.request import (
 from picard import config, log
 from picard.album import Album
 from picard.config import BoolOption
-from picard.file import register_file_post_addition_to_track_processor
+from picard.file import (
+    File,
+    register_file_post_addition_to_track_processor,
+    register_file_post_save_processor,
+)
+from picard.metadata import Metadata
 from picard.track import Track
 from picard.ui.itemviews import (
     BaseAction,
@@ -29,6 +34,7 @@ from PyQt5.QtNetwork import QNetworkRequest
 
 PLUGIN_NAME = "LRCLIB Lyrics"
 PLUGIN_AUTHOR = "Glicole"
+
 PLUGIN_DESCRIPTION = (
     "Fetch and embed lyrics from LRCLIB's crowdsourced database<br/>"
     "<b>Automatic Integration:</b> Save lyrics to both audio file metadata <i>and</i> .lrc sidecar files<br/>"
@@ -38,37 +44,37 @@ PLUGIN_DESCRIPTION = (
     "<br/>"
     "<i>Based on Dylancyclone's plugin</i>"
 )
-PLUGIN_VERSION = "1.1.5"
+PLUGIN_VERSION = "1.2.0"
 PLUGIN_API_VERSIONS = ["2.0", "2.1", "2.2", "2.3", "2.4", "2.5", "2.6"]
 PLUGIN_LICENSE = "MIT"
 PLUGIN_LICENSE_URL = "https://opensource.org/licenses/MIT"
 PLUGIN_USER_GUIDE_URL = "https://github.com/izaz4141/picard-lrclib"
 
+PLUGIN_OPTIONS = {
+    "get_on_load": False,
+    "get_on_save": False,
+    "auto_overwrite": False,
+    "save_lrc_file": True,
+    "ignore_instrumental": False,
+    "plain_as_txt": False,
+}
+
 lrclib_get_url = "https://lrclib.net/api/get"
 lrclib_search_url = "https://lrclib.net/api/search"
+files_processing: set = set()
 
 
 def format_durasi(durasi: int) -> str:
-    durasi = int(durasi)
-    donat = durasi
-    if durasi >= 3600:
-        jam = durasi // 3600
-        donat = durasi % 3600
-    if donat >= 60:
-        menit = donat // 60
-        detik = donat % 60
-    else:
-        menit = 0
-        detik = donat
+    hours, remainder = divmod(int(durasi), 3600)
+    minutes, seconds = divmod(remainder, 60)
 
-    if durasi >= 3600:
-        return f"{jam}:{menit:02}:{detik:02}"
-    else:
-        return f"{menit}:{detik:02}"
+    if hours > 0:
+        return f"{hours}:{minutes:02}:{seconds:02}"
+    return f"{minutes}:{seconds:02}"
 
 
-def truncate_text(text, max_lines=5, max_chars_per_line=46):
-    lines = []
+def truncate_text(text: str, max_lines=5, max_chars_per_line=46):
+    lines: list[str] = []
     for i, line in enumerate(text.splitlines()):
         if i >= max_lines:
             lines[-1] = lines[-1].rstrip() + " …"
@@ -136,15 +142,18 @@ def show_search_table(parent, query, response, request_callback):
     table.setHorizontalHeaderLabels(
         ["#", "Name", "Artist", "Length", "Album", "Synced"]
     )
-    table.verticalHeader().setVisible(False)
-    header = table.horizontalHeader()
-    header.setDefaultAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)
-    header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
-    header.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
-    header.setSectionResizeMode(2, QtWidgets.QHeaderView.Interactive)
-    header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
-    header.setSectionResizeMode(4, QtWidgets.QHeaderView.Interactive)
-    header.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
+    vheader = table.verticalHeader()
+    assert vheader is not None, "VHeader is unexpectedly None"
+    vheader.setVisible(False)
+    hheader = table.horizontalHeader()
+    assert hheader is not None, "HHeader is unexpectedly None"
+    hheader.setDefaultAlignment(QtCore.Qt.AlignHCenter | QtCore.Qt.AlignVCenter)  # type: ignore
+    hheader.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeToContents)
+    hheader.setSectionResizeMode(1, QtWidgets.QHeaderView.Stretch)
+    hheader.setSectionResizeMode(2, QtWidgets.QHeaderView.Interactive)
+    hheader.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
+    hheader.setSectionResizeMode(4, QtWidgets.QHeaderView.Interactive)
+    hheader.setSectionResizeMode(5, QtWidgets.QHeaderView.ResizeToContents)
     table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
     table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
     table.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -163,8 +172,8 @@ def show_search_table(parent, query, response, request_callback):
         table.setRowCount(len(response))
         for row, item in enumerate(response):
             num_item = QtWidgets.QTableWidgetItem()
-            num_item.setTextAlignment(QtCore.Qt.AlignCenter)
-            num_item.setData(QtCore.Qt.EditRole, row + 1)
+            num_item.setTextAlignment(QtCore.Qt.AlignCenter)  # type: ignore
+            num_item.setData(QtCore.Qt.EditRole, row + 1)  # type: ignore
             table.setItem(row, 0, num_item)
 
             has_synced = item.get("syncedLyrics")
@@ -178,7 +187,7 @@ def show_search_table(parent, query, response, request_callback):
             for col, val in enumerate(values, start=1):
                 cell_item = QtWidgets.QTableWidgetItem(str(val))
                 if col in [3, 5]:
-                    cell_item.setTextAlignment(QtCore.Qt.AlignCenter)
+                    cell_item.setTextAlignment(QtCore.Qt.AlignCenter)  # type: ignore
                     if col == 5:
                         cell_item.setForeground(
                             QtGui.QColor("#2ecc71" if has_synced else "#e74c3c")
@@ -258,68 +267,56 @@ def _fetch_json(url, params):
         return {}
 
 
-def get_lyrics(method, album, metadata, linked_files, length=None):
+def fetch_lyrics(
+    method: str,
+    album: Album,
+    metadata: Metadata,
+    linked_files: list[File],
+    length: int | None = None,
+):
     artist = metadata["artist"]
     title = metadata["title"]
     albumName = metadata["album"]
-    duration = int(length)
-    if not (artist and title and albumName and duration):
-        log.debug(
-            "{}: artist, title, album name, and duration are required to obtain lyrics".format(
-                PLUGIN_NAME
-            )
-        )
-        return
 
-    queryargs = {
-        "track_name": title,
-        "artist_name": artist,
-        "album_name": albumName,
-    }
-    if duration:
-        queryargs["duration"] = duration
+    if method == "search":
+        url = lrclib_search_url
+        queryargs = {"q": title}
+    else:
+        url = lrclib_get_url
+        queryargs = {
+            "track_name": title,
+            "artist_name": artist,
+            "album_name": albumName,
+        }
+        if length:
+            queryargs["duration"] = length
+
     album._requests += 1
     log.debug(
-        "{}: GET {}?{}".format(PLUGIN_NAME, quote(lrclib_get_url), urlencode(queryargs))
+        "{}: {} {}?{}".format(
+            PLUGIN_NAME,
+            "GET" if method != "search" else "SEARCH",
+            quote(url),
+            urlencode(queryargs),
+        )
     )
     _request(
-        album.tagger.webservice,
-        lrclib_get_url,
+        album.tagger.webservice,  # type: ignore
+        url,
         partial(process_response, method, album, metadata, linked_files),
         queryargs,
     )
 
 
-def search_lyrics(method, album, metadata, linked_files):
-    artist = metadata["artist"]
-    title = metadata["title"]
-    albumName = metadata["album"]
-    if not (artist and title and albumName):
-        log.debug(
-            "{}: artist, title, album name, and duration are required to obtain lyrics".format(
-                PLUGIN_NAME
-            )
-        )
-        return
-
-    queryargs = {
-        "q": title,
-    }
-    album._requests += 1
-    log.debug(
-        "{}: SEARCH {}?{}".format(
-            PLUGIN_NAME, quote(lrclib_search_url), urlencode(queryargs)
-        )
-    )
-    _request(
-        album.tagger.webservice,
-        lrclib_search_url,
-        partial(process_response, method, album, metadata, linked_files),
-        queryargs,
-    )
-
-
-def process_response(method, album, metadata, linked_files, response, reply, error):
+def process_response(
+    method: str,
+    album: Album,
+    metadata: Metadata,
+    linked_files: list[File],
+    response,
+    reply,
+    error,
+):
     if error or (
         response and isinstance(response, dict) and not response.get("id", False)
     ):
@@ -328,11 +325,16 @@ def process_response(method, album, metadata, linked_files, response, reply, err
                 PLUGIN_NAME, metadata["title"], metadata["artist"]
             )
         )
+        if method == "get_on_save":
+            for file in linked_files:
+                files_processing.discard(file.filename)
+        album._requests -= 1
+        album._finalize_loading(None)
         return
 
     try:
         if method == "search":
-            parent = album.tagger.window if hasattr(album, "tagger") else None
+            parent = album.tagger.window if hasattr(album, "tagger") else None  # type: ignore
             response = show_search_table(
                 parent, metadata["title"], response, _fetch_json
             )
@@ -343,24 +345,26 @@ def process_response(method, album, metadata, linked_files, response, reply, err
         is_plain = False
 
         if (
-            (response["instrumental"] or "(Instrumental)" in response["trackName"])
-            or "[au: instrumental]" in response.get("plainLyrics")
-            and (config.setting["ignore_instrumental"] or method == "search")
-        ):
+            response.get("instrumental", False)
+            or "(Instrumental)" in (response.get("trackName") or "")
+            or "[au: instrumental]" in (response.get("plainLyrics") or "")
+        ) and (config.setting["ignore_instrumental"] and method != "search"):
             lyrics = None
         elif response.get("syncedLyrics"):
-            lyrics = response["syncedLyrics"]
+            lyrics = response.get("syncedLyrics")
             is_plain = False
         else:
-            lyrics = response["plainLyrics"]
+            lyrics = response.get("plainLyrics", None)
             is_plain = True
-        if not lyrics:
+        if not isinstance(lyrics, str):
             return
 
         for file in linked_files:
             ext = ".txt" if (is_plain and config.setting["plain_as_txt"]) else ".lrc"
-            dirname = os.path.dirname(file.filename)
-            filename_no_ext = os.path.splitext(os.path.basename(file.filename))[0]
+            full_path = file.filename
+            assert full_path is not None, "File path is None"
+            dirname = os.path.dirname(full_path)
+            filename_no_ext = os.path.splitext(os.path.basename(full_path))[0]
             base_path = f"{dirname}/{filename_no_ext}"
             file_lrc = f"{base_path}{ext}"
 
@@ -371,33 +375,29 @@ def process_response(method, album, metadata, linked_files, response, reply, err
                 has_metadata_lyrics
                 and not has_lrc_file
                 and config.setting["save_lrc_file"]
+                and method != "search"
             ):
                 lyrics = file.metadata.get("lyrics")
-            elif has_lrc_file and not has_metadata_lyrics:
-                try:
-                    with open(file_lrc, "r", encoding="utf-8") as f:
-                        lyrics = f.read()
-                except Exception as e:
-                    log.error(f"{PLUGIN_NAME}: Failed to read existing .lrc file: {e}")
+                assert isinstance(lyrics, str), "Lyrics is not of type string"
+            elif has_lrc_file and not has_metadata_lyrics and method != "search":
+                with open(file_lrc, "r", encoding="utf-8") as f:
+                    lyrics = f.read()
             elif (
-                has_metadata_lyrics
-                and has_lrc_file
-                or has_metadata_lyrics
-                and not config.setting["save_lrc_file"]
-            ) and not config.setting["auto_overwrite"]:
-                if method == "search_on_load":
+                (
+                    (has_metadata_lyrics and has_lrc_file)
+                    or (has_metadata_lyrics and not config.setting["save_lrc_file"])
+                )
+                and (not config.setting["auto_overwrite"])
+                and (method not in ["get_on_load", "get_on_save"])
+            ):
+                title = "Overwrite file lyrics?"
+                desc = ('Overwrite Lyrics for "{}".\n\n{}').format(
+                    file.metadata.get("title", "<file>"),
+                    truncate_text(lyrics, 5, 42),
+                )
+                parent = getattr(file, "tagger", None)
+                if not confirm_replace(getattr(parent, "window", None), title, desc):
                     return
-                else:
-                    title = "Overwrite file lyrics?"
-                    desc = ('Overwrite Lyrics for "{}".\n\n{}').format(
-                        file.metadata.get("title", "<file>"),
-                        truncate_text(lyrics, 5, 42),
-                    )
-                    parent = getattr(file, "tagger", None)
-                    if not confirm_replace(
-                        getattr(parent, "window", None), title, desc
-                    ):
-                        return
 
             file.metadata["lyrics"] = lyrics
             if config.setting["save_lrc_file"]:
@@ -416,12 +416,13 @@ def process_response(method, album, metadata, linked_files, response, reply, err
                         f.write(lyrics)
                 except Exception as e:
                     log.error(f"{PLUGIN_NAME}: Failed to write .lrc file: {e}")
-                    parent = getattr(file, "tagger", None)
-                    fallback_parent = QtWidgets.QApplication.activeWindow()
+                    parent_widget = getattr(
+                        getattr(file, "tagger", None), "window", None
+                    )
+                    if not isinstance(parent_widget, QtWidgets.QWidget):
+                        parent_widget = QtWidgets.QApplication.activeWindow()
                     QtWidgets.QMessageBox.critical(
-                        getattr(parent, "window", fallback_parent)
-                        if parent
-                        else fallback_parent,
+                        parent_widget,
                         "Failed to Save LRC File",
                         f"Could not save lyrics file:\n\n{file_lrc}\n\nError: {e}",
                     )
@@ -431,15 +432,18 @@ def process_response(method, album, metadata, linked_files, response, reply, err
             )
         )
 
-    except (TypeError, KeyError, ValueError):
+    except (TypeError, KeyError, ValueError) as e:
         log.error(
-            '{}: lyrics NOT loaded for track "{}" by {}'.format(
-                PLUGIN_NAME, metadata["title"], metadata["artist"]
+            '{}: lyrics NOT loaded for track "{}" by {}: {}'.format(
+                PLUGIN_NAME, metadata["title"], metadata["artist"], e
             ),
             exc_info=True,
         )
 
     finally:
+        if method == "get_on_save":
+            for file in linked_files:
+                file.save()
         album._requests -= 1
         album._finalize_loading(None)
 
@@ -484,21 +488,22 @@ class LrclibLyricsOptionsPage(OptionsPage):
     }
 
     options = [
-        BoolOption("setting", "search_on_load", False),
-        BoolOption("setting", "auto_overwrite", False),
-        BoolOption("setting", "save_lrc_file", True),
-        BoolOption("setting", "ignore_instrumental", False),
-        BoolOption("setting", "plain_as_txt", False),
+        BoolOption("setting", key, PLUGIN_OPTIONS[key]) for key in PLUGIN_OPTIONS.keys()
     ]
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.box = QtWidgets.QVBoxLayout(self)
 
-        self.auto_search = QtWidgets.QCheckBox(
+        self.get_on_load = QtWidgets.QCheckBox(
             "Search for lyrics when loading tracks", self
         )
-        self.box.addWidget(self.auto_search)
+        self.box.addWidget(self.get_on_load)
+
+        self.get_on_save = QtWidgets.QCheckBox(
+            "Search for lyrics when saving files", self
+        )
+        self.box.addWidget(self.get_on_save)
 
         self.auto_overwrite = QtWidgets.QCheckBox(
             "Auto overwrite existing lyrics", self
@@ -546,14 +551,16 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.box.addWidget(self.description)
 
     def load(self):
-        self.auto_search.setChecked(config.setting["search_on_load"])
-        self.auto_overwrite.setChecked(config.setting["auto_overwrite"])
-        self.save_lrc.setChecked(config.setting["save_lrc_file"])
-        self.ignore_instrumental.setChecked(config.setting["ignore_instrumental"])
-        self.plain_as_txt.setChecked(config.setting["plain_as_txt"])
+        self.get_on_load.setChecked(bool(config.setting["get_on_load"]))
+        self.get_on_save.setChecked(bool(config.setting["get_on_save"]))
+        self.auto_overwrite.setChecked(bool(config.setting["auto_overwrite"]))
+        self.save_lrc.setChecked(bool(config.setting["save_lrc_file"]))
+        self.ignore_instrumental.setChecked(bool(config.setting["ignore_instrumental"]))
+        self.plain_as_txt.setChecked(bool(config.setting["plain_as_txt"]))
 
     def save(self):
-        config.setting["search_on_load"] = self.auto_search.isChecked()
+        config.setting["get_on_load"] = self.get_on_load.isChecked()
+        config.setting["get_on_save"] = self.get_on_save.isChecked()
         config.setting["auto_overwrite"] = self.auto_overwrite.isChecked()
         config.setting["save_lrc_file"] = self.save_lrc.isChecked()
         config.setting["ignore_instrumental"] = self.ignore_instrumental.isChecked()
@@ -636,20 +643,46 @@ class LrclibLyricsOptionsPage(OptionsPage):
         return orphaned_count
 
 
-def search_on_load(track, file):
-    if not config.setting["search_on_load"]:
+def get_on_load(track: Track, file: File) -> None:
+    if not config.setting["get_on_load"]:
         return
     try:
-        if not track.linked_files:
+        if not track.files:
             return
+        album = track.album
+        assert isinstance(album, Album), "Album is not of type Album"
+        metadata = track.metadata
+        assert isinstance(metadata, Metadata), "Metadata is not of type Metadata"
         length = None
-        if track.metadata["~length"]:
-            length = parse_duration(track.metadata["~length"])
-        get_lyrics(
-            "search_on_load", track.album, track.metadata, track.linked_files, length
-        )
+        if metadata["~length"]:
+            length = parse_duration(str(track.metadata["~length"]))
+        assert isinstance(length, int), "Length is not of type integer"
+        fetch_lyrics("get_on_load", album, metadata, track.files, length)
     except Exception as err:
-        log.error(f"{PLUGIN_NAME}: Error in search_on_load: {err}")
+        log.error(f"{PLUGIN_NAME}: Error in get_on_load: {err}")
+
+
+def get_on_save(file: File) -> None:
+    if not config.setting["get_on_save"]:
+        return
+    if file.filename in files_processing:
+        return files_processing.discard(
+            file.filename
+        )  # Picard only allow one concurrent save_hook
+    try:
+        files_processing.add(file.filename)
+        album = file.parent.album  # type: ignore
+        assert isinstance(album, Album), "Album is not of type Album"
+        metadata = file.metadata
+        assert isinstance(metadata, Metadata), "Metadata is not of type Metadata"
+        length = None
+        if metadata["~length"]:
+            length = parse_duration(str(metadata["~length"]))
+        assert isinstance(length, int), "Length is not of type integer"
+        fetch_lyrics("get_on_save", album, metadata, [file], length)
+    except Exception as err:
+        log.error(f"{PLUGIN_NAME}: Error in get_on_save: {err}")
+        files_processing.discard(file.filename)
 
 
 class LrcLibLyricsGet(BaseAction):
@@ -659,10 +692,15 @@ class LrcLibLyricsGet(BaseAction):
         try:
             if not track.linked_files:  # If it's not in your local file then ignore
                 return
+            album = track.album
+            assert isinstance(album, Album), "Album is not of type Album"
+            metadata = track.metadata
+            assert isinstance(metadata, Metadata), "Metadata is not of type Metadata"
             length = None
-            if track.metadata["~length"]:
-                length = parse_duration(track.metadata["~length"])
-            get_lyrics("get", track.album, track.metadata, track.linked_files, length)
+            if metadata["~length"]:
+                length = parse_duration(str(metadata["~length"]))
+            assert isinstance(length, int), "Length is not of type integer"
+            fetch_lyrics("get", album, metadata, track.files, length)
         except Exception as err:
             log.error(err)
 
@@ -684,7 +722,7 @@ class LrcLibLyricsSearch(BaseAction):
         try:
             if not track.linked_files:  # If it's not in your local file then ignore
                 return
-            search_lyrics("search", track.album, track.metadata, track.linked_files)
+            fetch_lyrics("search", track.album, track.metadata, track.linked_files)
         except Exception as err:
             log.error(err)
 
@@ -699,7 +737,8 @@ class LrcLibLyricsSearch(BaseAction):
                     self.execute_on_track(track)
 
 
-register_file_post_addition_to_track_processor(search_on_load)
+register_file_post_addition_to_track_processor(get_on_load)
+register_file_post_save_processor(get_on_save)
 
 register_track_action(LrcLibLyricsSearch())
 register_album_action(LrcLibLyricsSearch())
