@@ -350,8 +350,8 @@ def process_response(
 
         if (
             response.get("instrumental", False)
-            or "(Instrumental)" in response.get("trackName", "")
-            or "[au: instrumental]" in response.get("plainLyrics", "")
+            or "(Instrumental)" in (response.get("trackName") or "")
+            or "[au: instrumental]" in (response.get("plainLyrics") or "")
         ) and (config.setting["ignore_instrumental"] or method == "search"):
             lyrics = None
         elif response.get("syncedLyrics"):
