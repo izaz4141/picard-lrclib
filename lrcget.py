@@ -352,13 +352,13 @@ def process_response(
             response.get("instrumental", False)
             or "(Instrumental)" in (response.get("trackName") or "")
             or "[au: instrumental]" in (response.get("plainLyrics") or "")
-        ) and (config.setting["ignore_instrumental"] or method == "search"):
+        ) and (config.setting["ignore_instrumental"] and method != "search"):
             lyrics = None
         elif response.get("syncedLyrics"):
-            lyrics = response["syncedLyrics"]
+            lyrics = response.get("syncedLyrics")
             is_plain = False
         else:
-            lyrics = response["plainLyrics"]
+            lyrics = response.get("plainLyrics", None)
             is_plain = True
         if not isinstance(lyrics, str):
             return
@@ -379,10 +379,11 @@ def process_response(
                 has_metadata_lyrics
                 and not has_lrc_file
                 and config.setting["save_lrc_file"]
+                and method != "search"
             ):
                 lyrics = file.metadata.get("lyrics")
                 assert isinstance(lyrics, str), "Lyrics is not of type string"
-            elif has_lrc_file and not has_metadata_lyrics:
+            elif has_lrc_file and not has_metadata_lyrics and method != "search":
                 with open(file_lrc, "r", encoding="utf-8") as f:
                     lyrics = f.read()
             elif (
@@ -435,10 +436,10 @@ def process_response(
             )
         )
 
-    except (TypeError, KeyError, ValueError):
+    except (TypeError, KeyError, ValueError) as e:
         log.error(
-            '{}: lyrics NOT loaded for track "{}" by {}'.format(
-                PLUGIN_NAME, metadata["title"], metadata["artist"]
+            '{}: lyrics NOT loaded for track "{}" by {}: {}'.format(
+                PLUGIN_NAME, metadata["title"], metadata["artist"], e
             ),
             exc_info=True,
         )
