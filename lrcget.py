@@ -332,6 +332,8 @@ def process_response(
                 PLUGIN_NAME, metadata["title"], metadata["artist"]
             )
         )
+        album._requests -= 1
+        album._finalize_loading(None)
         return
 
     try:
