@@ -105,6 +105,24 @@ def parse_duration(time_str: str):
 
     return total_seconds
 
+def get_track_duration(track: Track) -> int:
+    metadata = track.metadata
+    assert isinstance(metadata, Metadata), "Metadata is not of type Metadata"
+    length = None
+    if metadata["~length"]:
+        length = parse_duration(str(metadata["~length"]))
+    else:
+        log.warning(
+            '{}: length NOT found for in metadata for track "{}", falling back to file length'.format(
+                PLUGIN_NAME, metadata["title"]
+            )
+        )
+        assert track.num_linked_files > 0, "No files linked to {}".format(metadata["title"])
+        tr_metadata = track.files[0].metadata
+        if tr_metadata["~length"]:
+            length = parse_duration(str(tr_metadata["~length"]))
+    assert isinstance(length, int), "Length is type " + str(type(length))+ ", not of type integer"
+    return length
 
 def confirm_replace(parent, title, description):
     try:
@@ -652,13 +670,8 @@ def get_on_load(track: Track, file: File) -> None:
             return
         album = track.album
         assert isinstance(album, Album), "Album is not of type Album"
-        metadata = track.metadata
-        assert isinstance(metadata, Metadata), "Metadata is not of type Metadata"
-        length = None
-        if metadata["~length"]:
-            length = parse_duration(str(track.metadata["~length"]))
-        assert isinstance(length, int), "Length is not of type integer"
-        fetch_lyrics("get_on_load", album, metadata, track.files, length)
+        length = get_track_duration(track)
+        fetch_lyrics("get_on_load", album, track.metadata, track.files, length)
     except Exception as err:
         log.error(f"{PLUGIN_NAME}: Error in get_on_load: {err}")
 
@@ -695,15 +708,11 @@ class LrcLibLyricsGet(BaseAction):
                 return
             album = track.album
             assert isinstance(album, Album), "Album is not of type Album"
-            metadata = track.metadata
-            assert isinstance(metadata, Metadata), "Metadata is not of type Metadata"
-            length = None
-            if metadata["~length"]:
-                length = parse_duration(str(metadata["~length"]))
-            assert isinstance(length, int), "Length is not of type integer"
-            fetch_lyrics("get", album, metadata, track.files, length)
+            length = get_track_duration(track)
+            fetch_lyrics("get", album, track.metadata, track.files, length)
         except Exception as err:
             log.error(err)
+
 
     def callback(self, objs):
         for item in (t for t in objs if isinstance(t, Track) or isinstance(t, Album)):
