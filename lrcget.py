@@ -152,6 +152,8 @@ def show_search_table(parent, query, response, request_callback):
     search_input.setText(query)
     search_input.setPlaceholderText("Enter search query...")
     search_button = QtWidgets.QPushButton("Search")
+    search_button.setDefault(True)
+    search_button.setAutoDefault(True)
     search_layout.addWidget(search_input)
     search_layout.addWidget(search_button)
     layout.addLayout(search_layout)
