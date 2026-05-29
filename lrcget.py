@@ -195,12 +195,12 @@ def show_search_table(parent, query, response, request_callback):
             num_item.setData(QtCore.Qt.EditRole, row + 1)  # type: ignore
             table.setItem(row, 0, num_item)
 
-            has_synced = item.get("syncedLyrics")
+            has_synced = item.get("syncedLyrics") or False
             values = [
-                item.get("trackName", ""),
-                item.get("artistName", ""),
-                format_durasi(item.get("duration", 0)),
-                item.get("albumName", ""),
+                item.get("trackName") or "?",
+                item.get("artistName") or "?",
+                format_durasi(item.get("duration", None) or 0),
+                item.get("albumName") or "?",
                 "V" if has_synced else "X",
             ]
             for col, val in enumerate(values, start=1):
