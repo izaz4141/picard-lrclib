@@ -181,7 +181,7 @@ def show_search_table(parent, query, response, request_callback):
             values = [
                 item.get("trackName", ""),
                 item.get("artistName", ""),
-                format_durasi(item.get("duration", 0)),
+                format_durasi(item.get("duration", None) or 0),
                 item.get("albumName", ""),
                 "V" if has_synced else "X",
             ]
