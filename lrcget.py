@@ -21,9 +21,14 @@ DEFAULTS = {
     "save_lrc_file": True,
     "ignore_instrumental": False,
     "plain_as_txt": False,
+    "import_lrc_files": True,
+    "rename_lrc_files": True,
 }
 
 files_processing: set[str] = set()
+# Maps the File object to the .lrc path that existed when the file was added.
+# This is intentionally volatile: it only needs to survive until Picard saves/moves the file.
+existing_lrc_files: dict[int, str] = {}
 
 
 def format_duration(duration: int) -> str:
@@ -91,7 +96,6 @@ def show_search_table(api: PluginApi, query: str, response):
     search_layout.addWidget(search_input)
     search_layout.addWidget(search_button)
     layout.addLayout(search_layout)
-
     table = QtWidgets.QTableWidget(dialog)
     table.setColumnCount(6)
     table.setHorizontalHeaderLabels(["#", "Name", "Artist", "Length", "Album", "Synced"])
@@ -107,9 +111,7 @@ def show_search_table(api: PluginApi, query: str, response):
     table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
     table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
     layout.addWidget(table)
-    buttons = QtWidgets.QDialogButtonBox(
-        QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel
-    )
+    buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
     layout.addWidget(buttons)
     current_response = list(response) if isinstance(response, list) else []
 
@@ -149,6 +151,48 @@ def show_search_table(api: PluginApi, query: str, response):
     return None
 
 
+def remember_existing_lrc(api: PluginApi, track: Track, file: File):
+    """Remember and optionally import an LRC that exists beside an added audio file."""
+    if not file.filename or not api.plugin_config["rename_lrc_files"] and not api.plugin_config["import_lrc_files"]:
+        return
+    audio_path = os.path.abspath(file.filename)
+    if not os.path.isfile(audio_path):
+        return
+    lrc_path = os.path.splitext(audio_path)[0] + ".lrc"
+    if not os.path.isfile(lrc_path):
+        return
+    existing_lrc_files[id(file)] = lrc_path
+    if api.plugin_config["import_lrc_files"] and not file.metadata.get("lyrics"):
+        try:
+            with open(lrc_path, encoding="utf-8") as handle:
+                lyrics = handle.read()
+            if lyrics:
+                file.metadata["lyrics"] = lyrics
+                api.logger.info('%s: imported existing LRC "%s"', PLUGIN_NAME, lrc_path)
+        except (OSError, UnicodeError) as exc:
+            api.logger.error('%s: cannot read existing LRC %s: %s', PLUGIN_NAME, lrc_path, exc)
+
+
+def rename_existing_lrc(api: PluginApi, file: File):
+    """Rename an LRC captured at file-add time to match Picard's final audio path."""
+    source = existing_lrc_files.pop(id(file), None)
+    if not source or not api.plugin_config["rename_lrc_files"] or not file.filename:
+        return
+    source = os.path.abspath(source)
+    target = os.path.splitext(os.path.abspath(file.filename))[0] + ".lrc"
+    if source == target or not os.path.exists(source):
+        return
+    if os.path.exists(target):
+        api.logger.warning('%s: cannot rename %s because %s already exists', PLUGIN_NAME, source, target)
+        return
+    try:
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        os.replace(source, target)
+        api.logger.info('%s: renamed LRC "%s" -> "%s"', PLUGIN_NAME, source, target)
+    except OSError as exc:
+        api.logger.error('%s: cannot rename LRC %s -> %s: %s', PLUGIN_NAME, source, target, exc)
+
+
 def request_lyrics(api: PluginApi, method: str, album: Album, metadata: Metadata, files: list[File], length: int | None = None):
     if method == "search":
         url = LRCLIB_SEARCH_URL
@@ -162,7 +206,6 @@ def request_lyrics(api: PluginApi, method: str, album: Album, metadata: Metadata
         }
         if length:
             queryargs["duration"] = length
-
     task_id = f"lrclib_{method}_{id(album)}_{id(files[0]) if files else id(album)}"
 
     def create_request():
@@ -175,14 +218,7 @@ def request_lyrics(api: PluginApi, method: str, album: Album, metadata: Metadata
         )
 
     if method in {"get_on_load", "get_on_save"}:
-        album.add_task(
-            task_id,
-            TaskType.PLUGIN,
-            "Fetching LRCLIB lyrics",
-            timeout=30,
-            plugin_id=api.plugin_id,
-            request_factory=create_request,
-        )
+        album.add_task(task_id, TaskType.PLUGIN, "Fetching LRCLIB lyrics", timeout=30, plugin_id=api.plugin_id, request_factory=create_request)
     else:
         create_request()
 
@@ -198,20 +234,13 @@ def process_response(api: PluginApi, method: str, album: Album, metadata: Metada
                 return
         if not isinstance(response, dict):
             return
-
-        instrumental = (
-            response.get("instrumental", False)
-            or "(Instrumental)" in (response.get("trackName") or "")
-            or "[au: instrumental]" in (response.get("plainLyrics") or "")
-        )
+        instrumental = response.get("instrumental", False) or "(Instrumental)" in (response.get("trackName") or "") or "[au: instrumental]" in (response.get("plainLyrics") or "")
         if instrumental and api.plugin_config["ignore_instrumental"] and method != "search":
             return
-
         synced = bool(response.get("syncedLyrics"))
         lyrics = response.get("syncedLyrics") or response.get("plainLyrics")
         if not isinstance(lyrics, str):
             return
-
         for file in files:
             if not file.filename:
                 continue
@@ -220,18 +249,14 @@ def process_response(api: PluginApi, method: str, album: Album, metadata: Metada
             sidecar = base + ext
             has_embedded = bool(file.metadata.get("lyrics"))
             has_sidecar = os.path.exists(sidecar)
-
             if has_embedded and not has_sidecar and api.plugin_config["save_lrc_file"] and method != "search":
                 lyrics = file.metadata["lyrics"]
             elif has_sidecar and not has_embedded and method != "search":
                 with open(sidecar, encoding="utf-8") as handle:
                     lyrics = handle.read()
-            elif (
-                (has_embedded and has_sidecar) or (has_embedded and not api.plugin_config["save_lrc_file"])
-            ) and not api.plugin_config["auto_overwrite"] and method not in {"get_on_load", "get_on_save"}:
+            elif ((has_embedded and has_sidecar) or (has_embedded and not api.plugin_config["save_lrc_file"])) and not api.plugin_config["auto_overwrite"] and method not in {"get_on_load", "get_on_save"}:
                 if not confirm_replace(api.tagger.window, file.metadata.get("title", "<file>"), lyrics):
                     continue
-
             file.metadata["lyrics"] = lyrics
             if api.plugin_config["save_lrc_file"]:
                 for old_ext in (".txt", ".lrc"):
@@ -289,12 +314,7 @@ class LrclibLyricsOptionsPage(OptionsPage):
     NAME = "lrclib_lyrics"
     TITLE = "LRCLIB Lyrics"
     PARENT = "plugins"
-
-    AUDIO_EXTENSIONS = {
-        "aac", "ac3", "aif", "aifc", "aiff", "ape", "asf", "dff", "dsf", "eac3", "flac",
-        "kar", "m2a", "ofr", "ofs", "oga", "ogg", "oggflac", "oggtheora", "ogv", "ogx",
-        "opus", "spx", "tak", "tta", "wav", "webm", "wma", "wmv", "wv", "xwma",
-    }
+    AUDIO_EXTENSIONS = {"aac", "ac3", "aif", "aifc", "aiff", "ape", "asf", "dff", "dsf", "eac3", "flac", "kar", "m2a", "ofr", "ofs", "oga", "ogg", "oggflac", "oggtheora", "ogv", "ogx", "opus", "spx", "tak", "tta", "wav", "webm", "wma", "wmv", "wv", "xwma"}
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -306,7 +326,9 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.save_lrc = QtWidgets.QCheckBox("Save .lrc file alongside audio files")
         self.ignore_instrumental = QtWidgets.QCheckBox("Ignore instrumental lyrics")
         self.plain_as_txt = QtWidgets.QCheckBox("Save plain lyrics as .txt")
-        for widget in (self.get_on_load, self.get_on_save, self.auto_overwrite, self.save_lrc, self.ignore_instrumental, self.plain_as_txt):
+        self.import_lrc = QtWidgets.QCheckBox("Import existing .lrc files when adding audio files")
+        self.rename_lrc = QtWidgets.QCheckBox("Rename existing .lrc files to match Picard's audio filenames")
+        for widget in (self.get_on_load, self.get_on_save, self.auto_overwrite, self.save_lrc, self.ignore_instrumental, self.plain_as_txt, self.import_lrc, self.rename_lrc):
             box.addWidget(widget)
         box.addSpacing(20)
         box.addWidget(QtWidgets.QLabel("Cleanup Tools:"))
@@ -314,25 +336,21 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.cleanup_button.clicked.connect(self.clean_orphaned_lrc_files)
         box.addWidget(self.cleanup_button)
         box.addItem(QtWidgets.QSpacerItem(0, 0, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding))
-        box.addWidget(QtWidgets.QLabel(
-            "LRCLIB provides lyrics from a crowdsourced database.\n"
-            "Lyrics are intended for educational and personal use.\n"
-            "Searching for lyrics when loading tracks can slow the loading process."
-        ))
+        box.addWidget(QtWidgets.QLabel("LRCLIB provides lyrics from a crowdsourced database.\nLyrics are intended for educational and personal use.\nSearching for lyrics when loading tracks can slow the loading process."))
 
     def load(self):
         for name, widget in (
-            ("get_on_load", self.get_on_load), ("get_on_save", self.get_on_save),
-            ("auto_overwrite", self.auto_overwrite), ("save_lrc_file", self.save_lrc),
-            ("ignore_instrumental", self.ignore_instrumental), ("plain_as_txt", self.plain_as_txt),
+            ("get_on_load", self.get_on_load), ("get_on_save", self.get_on_save), ("auto_overwrite", self.auto_overwrite),
+            ("save_lrc_file", self.save_lrc), ("ignore_instrumental", self.ignore_instrumental), ("plain_as_txt", self.plain_as_txt),
+            ("import_lrc_files", self.import_lrc), ("rename_lrc_files", self.rename_lrc),
         ):
             widget.setChecked(bool(self.api.plugin_config[name]))
 
     def save(self):
         for name, widget in (
-            ("get_on_load", self.get_on_load), ("get_on_save", self.get_on_save),
-            ("auto_overwrite", self.auto_overwrite), ("save_lrc_file", self.save_lrc),
-            ("ignore_instrumental", self.ignore_instrumental), ("plain_as_txt", self.plain_as_txt),
+            ("get_on_load", self.get_on_load), ("get_on_save", self.get_on_save), ("auto_overwrite", self.auto_overwrite),
+            ("save_lrc_file", self.save_lrc), ("ignore_instrumental", self.ignore_instrumental), ("plain_as_txt", self.plain_as_txt),
+            ("import_lrc_files", self.import_lrc), ("rename_lrc_files", self.rename_lrc),
         ):
             self.api.plugin_config[name] = widget.isChecked()
 
@@ -384,7 +402,9 @@ class LrcLibLyricsSearch(BaseAction):
 def enable(api: PluginApi):
     for key, default in DEFAULTS.items():
         api.plugin_config.register_option(key, default)
+    api.register_file_post_addition_to_track_processor(remember_existing_lrc)
     api.register_file_post_addition_to_track_processor(get_on_load)
+    api.register_file_post_save_processor(rename_existing_lrc, priority=-100)
     api.register_file_post_save_processor(get_on_save)
     api.register_track_action(LrcLibLyricsSearch)
     api.register_album_action(LrcLibLyricsSearch)
