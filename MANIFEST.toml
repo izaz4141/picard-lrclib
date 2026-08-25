@@ -1,0 +1,9 @@
+uuid = "df46dced-1490-4c64-80e7-79f6b6ae222d"
+name = "LRCLIB Lyrics"
+description = "Fetch and embed lyrics from LRCLIB, with support for importing, creating, and renaming .lrc sidecar files."
+long_description = "Fetch and embed lyrics from LRCLIB's crowdsourced database. Prefers synchronized lyrics when available, falls back to plain lyrics, supports automatic fetching on load/save, manual lookup and search, importing existing .lrc files, renaming .lrc files to follow Picard's final audio filenames, creating .lrc or .txt sidecars, instrumental filtering, overwrite protection, and orphaned LRC cleanup."
+api = ["3.0"]
+authors = ["Glicole", "Opt6"]
+license = "MIT"
+license_url = "https://opensource.org/licenses/MIT"
+categories = ["metadata"]
