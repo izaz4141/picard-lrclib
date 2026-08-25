@@ -85,7 +85,6 @@ def show_search_table(api: PluginApi, query: str, response):
     dialog.setWindowTitle("Search Tracks")
     dialog.resize(700, 400)
     layout = QtWidgets.QVBoxLayout(dialog)
-
     search_layout = QtWidgets.QHBoxLayout()
     search_input = QtWidgets.QLineEdit(query)
     search_button = QtWidgets.QPushButton("Search")
@@ -108,7 +107,6 @@ def show_search_table(api: PluginApi, query: str, response):
     table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
     table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
     layout.addWidget(table)
-
     buttons = QtWidgets.QDialogButtonBox(
         QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel
     )
@@ -121,11 +119,8 @@ def show_search_table(api: PluginApi, query: str, response):
         table.setRowCount(len(current_response))
         for row, item in enumerate(current_response):
             values = [
-                str(row + 1),
-                item.get("trackName") or "?",
-                item.get("artistName") or "?",
-                format_duration(item.get("duration") or 0),
-                item.get("albumName") or "?",
+                str(row + 1), item.get("trackName") or "?", item.get("artistName") or "?",
+                format_duration(item.get("duration") or 0), item.get("albumName") or "?",
                 "Yes" if item.get("syncedLyrics") else "No",
             ]
             for col, value in enumerate(values):
@@ -148,7 +143,6 @@ def show_search_table(api: PluginApi, query: str, response):
     table.doubleClicked.connect(lambda index: dialog.accept() if index.isValid() else None)
     buttons.accepted.connect(dialog.accept)
     buttons.rejected.connect(dialog.reject)
-
     if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
         row = table.currentRow()
         return current_response[row] if 0 <= row < len(current_response) else None
@@ -198,12 +192,10 @@ def process_response(api: PluginApi, method: str, album: Album, metadata: Metada
         if error or not response:
             api.logger.warning('%s: lyrics not found for "%s"', PLUGIN_NAME, metadata.get("title", "<unknown>"))
             return
-
         if method == "search":
             response = show_search_table(api, metadata.get("title", ""), response)
             if response is None:
                 return
-
         if not isinstance(response, dict):
             return
 
@@ -254,7 +246,6 @@ def process_response(api: PluginApi, method: str, album: Album, metadata: Metada
                         handle.write(lyrics)
                 except OSError as exc:
                     api.logger.error("%s: cannot write %s: %s", PLUGIN_NAME, sidecar, exc)
-
     except (TypeError, KeyError, ValueError, OSError) as exc:
         api.logger.error("%s: processing failed: %s", PLUGIN_NAME, exc, exc_info=True)
     finally:
@@ -305,9 +296,9 @@ class LrclibLyricsOptionsPage(OptionsPage):
         "opus", "spx", "tak", "tta", "wav", "webm", "wma", "wmv", "wv", "xwma",
     }
 
-    def __init__(self, api=None, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.api = api
+        self.api = self.__class__.api
         box = QtWidgets.QVBoxLayout(self)
         self.get_on_load = QtWidgets.QCheckBox("Search for lyrics when loading tracks")
         self.get_on_save = QtWidgets.QCheckBox("Search for lyrics when saving files")
@@ -366,7 +357,7 @@ class LrclibLyricsOptionsPage(OptionsPage):
 
 
 class LrcLibLyricsGet(BaseAction):
-    NAME = "Get lyrics automatically with LRCLIB"
+    TITLE = "Get lyrics automatically with LRCLIB"
 
     def callback(self, objs):
         for item in objs:
@@ -380,7 +371,7 @@ class LrcLibLyricsGet(BaseAction):
 
 
 class LrcLibLyricsSearch(BaseAction):
-    NAME = "Search lyrics manually with LRCLIB"
+    TITLE = "Search lyrics manually with LRCLIB"
 
     def callback(self, objs):
         for item in objs:
