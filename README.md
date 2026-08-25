@@ -1,66 +1,65 @@
-# LRCLIB Lyrics Plugin for Picard
+# LRCLIB Lyrics Plugin for MusicBrainz Picard
 
-A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) and save them to both **audio file metadata** and **.lrc sidecar files** for Jellyfin compatibility.
+A MusicBrainz Picard plugin that fetches lyrics from [LRCLIB](https://lrclib.net), embeds them in the audio file `lyrics` tag, and can create `.lrc` sidecar files.
 
+This repository is a **Picard Plugin API 3.0** fork of [izaz4141/picard-lrclib](https://github.com/izaz4141/picard-lrclib).
 
 ## Features
-- 🎵 Fetches lyrics from LRCLIB's crowdsourced database — either **manually** or **automatically**
-- 💾 Saves lyrics to:
-  - `lyrics` metadata tag (for players like MusicBee/iTunes)
-  - `.lrc` files (for Jellyfin, Plex, Kodi, etc.)
-- ⚡ Optionally enable automatic lyric fetching whenever a track is loaded
-- 🚫 Receive a confirmation prompt before overwriting existing `.lrc` files or `lyrics` metadata
-- 🧹 Remove orphaned `.lrc` files that no longer have matching audio files
+
+- Fetch lyrics automatically when tracks are loaded or saved.
+- Fetch lyrics manually for a track or album.
+- Search LRCLIB manually and select a result.
+- Prefer synchronized lyrics and fall back to plain lyrics.
+- Embed lyrics in the `lyrics` metadata tag.
+- Save synchronized lyrics as `.lrc` sidecars.
+- Optionally save plain lyrics as `.txt` sidecars.
+- Optionally ignore instrumental tracks.
+- Protect existing lyrics from overwrite unless explicitly requested.
+- Recursively remove orphaned `.lrc` files.
 
 ## Installation
-1. **Download Plugin Files**:
-   - Get the latest `.py` files from [**GitHub Releases**](https://raw.githubusercontent.com/izaz4141/picard-lrclib/refs/heads/main/lrcget.py)
-   
-2. **Install in Picard**:
-   - Open Picard → `Options` → `Plugins`
-   - Click `Install Plugin` 
-   - Select the downloaded `.py` file(s)
+
+Picard 3.x plugins use the Git-based Plugin API 3.0 format. Install this repository using Picard's plugin installation mechanism for v3 plugins, or clone the repository into your Picard plugins directory as appropriate for your Picard installation.
+
+The plugin manifest is `MANIFEST.toml`; the plugin entry point is `__init__.py`.
 
 ## Usage
-1. **Fetch Lyrics**  
-   - **Automatic Fetching** (on track load):
-     - Enable auto-fetch:  
-       `Options` → `Plugins` → `LRCLIB Lyrics` → Check "Search for lyrics when loading tracks"
 
-   - **Automatic Fetching**:  
-     - Right-click track/album → `Get lyrics automatically with LRCLIB`
-     
-   - **Manual Fetching**:
-     - Right click track/album → `Search lyrics manually with LRCLIB`
+After installation, configure the plugin under:
 
-2. **Save Lyrics to Files**
-   **After fetching**, you **must save the files** to write lyrics to metadata:  
-   - Click the 💾 **Save** button in Picard’s toolbar, or press `Ctrl+S`  
-   - Lyrics will be:  
-     - Embedded into the audio file’s `lyrics` metadata tag  
-     - Saved as a `.lrc` file in the same folder as the audio file
+`Options → Plugins → LRCLIB Lyrics`
 
-3. **Clean Orphaned LRC Files**:
-   - Navigate to: `Options` → `Plugins` → `LRCLIB Lyrics`
-   - Click the **"Clean Orphaned LRC Files"** button
-   - Select your music library root directory
-   - The tool recursively scans all subdirectories
-   - Identifies `.lrc` files without matching audio files
-   - Automatically removes orphaned `.lrc` files
+Available options:
+
+- **Search for lyrics when loading tracks**
+- **Search for lyrics when saving files**
+- **Auto overwrite existing lyrics**
+- **Save .lrc file alongside audio files**
+- **Ignore instrumental lyrics**
+- **Save plain lyrics as .txt**
+- **Clean Orphaned LRC Files**
+
+Manual actions are available from the track and album context menus:
+
+- **Get lyrics automatically with LRCLIB**
+- **Search lyrics manually with LRCLIB**
 
 ## Compatibility
-| Component           | Supported          |
-|---------------------|--------------------|
-| Picard Versions     | 2.0+ (API v2.0-2.6)|
-| Audio Formats       | All (MP3, FLAC, etc.) |
-| Media Servers       | Jellyfin, Plex, Emby |
-| Players             | MusicBee, Foobar2000, AIMP |
 
-## Notes
-- Lyrics are saved in UTF-8 encoding
-- `.lrc` files match your audio filenames automatically
-- Fetching on track load **never** overwrites existing lyrics
-- Supported audio formats for cleanup: `.mp3`, `.flac`, `.m4a`, `.ogg`, `.opus`, `.wav`, `.wma`, `.aac`, `.ape`, `.mpc`, `.wv`
+| Component | Support |
+|---|---|
+| Picard | Plugin API 3.0 / Picard 3.x |
+| LRCLIB | `api/get` and `api/search` |
+| Sidecars | `.lrc` and optional `.txt` |
+
+## Credits
+
+Based on the original [izaz4141/picard-lrclib](https://github.com/izaz4141/picard-lrclib) plugin.
+
+## License
+
+MIT
 
 ## Disclaimer
-This plugin is unofficial. Always verify lyrics accuracy.
+
+This plugin is unofficial. Verify lyrics accuracy and ensure your use of lyrics complies with applicable copyright and service terms.
