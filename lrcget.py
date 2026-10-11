@@ -23,7 +23,6 @@ from urllib.request import (
 )
 
 from PyQt6 import QtCore, QtGui, QtWidgets
-# from PyQt6.QtNetwork import QNetworkRequest
 
 lrclib_get_url = "https://lrclib.net/api/get"
 lrclib_search_url = "https://lrclib.net/api/search"
@@ -231,7 +230,6 @@ def _request(api, url, album, task_id, callback, queryargs=None, important=False
             priority=True,
             important=important,
             queryargs=queryargs,
-            #cacheloadcontrol=QNetworkRequest.PreferNetwork,
         )
     
     api.add_album_task(
@@ -294,13 +292,12 @@ def fetch_lyrics(
         if length:
             queryargs["duration"] = length
 
-    # album._requests += 1
     api.logger.debug(
         f"{plugin_name(api)}: {'GET' if method != 'search' else 'SEARCH'} {quote(url)}?{urlencode(queryargs)}"
     )
 
     _request(
-        api,  # type: ignore
+        api,
         url,
         album,
         task_id,
@@ -329,14 +326,12 @@ def process_response(
         if method == "get_on_save":
             for file in linked_files:
                 files_processing.discard(file.filename)
-        # album._requests -= 1
-        # album._finalize_loading(None)
         api.complete_album_task(album, task_id)
         return
 
     try:
         if method == "search":
-            parent = album.tagger.window if hasattr(album, "tagger") else None  # type: ignore
+            parent = getattr(api.tagger, "window", None)
             response = show_search_table(
                 api, parent, metadata["title"], response, _fetch_json
             )
@@ -397,8 +392,8 @@ def process_response(
                     f'Overwrite Lyrics for "{file.metadata.get("title", "<file>")}".\n\n'
                     f"{truncate_text(lyrics, 5, 42)}"
                 )
-                parent = getattr(file, "tagger", None)
-                if not confirm_replace(getattr(parent, "window", None), title, desc):
+                parent = getattr(api.tagger, "window", None)
+                if not confirm_replace(parent, title, desc):
                     return
 
             file.metadata["lyrics"] = lyrics
@@ -418,9 +413,7 @@ def process_response(
                         f.write(lyrics)
                 except Exception as e:
                     api.logger.error(f"{plugin_name(api)}: Failed to write .lrc file: {e}")
-                    parent_widget = getattr(
-                        getattr(file, "tagger", None), "window", None
-                    )
+                    parent_widget = getattr(api.tagger, "window", None)
                     if not isinstance(parent_widget, QtWidgets.QWidget):
                         parent_widget = QtWidgets.QApplication.activeWindow()
                     QtWidgets.QMessageBox.critical(
@@ -444,8 +437,6 @@ def process_response(
                 file.save()
 
         api.complete_album_task(album, task_id)
-        # album._requests -= 1
-        # album._finalize_loading(None)
 
 
 class LrclibLyricsOptionsPage(OptionsPage):
@@ -661,8 +652,11 @@ def get_on_save(api, file: File) -> None:
             file.filename
         )  # Picard only allow one concurrent save_hook
     try:
+        parent = file.parent_item
+        album = parent.album if isinstance(parent, Track) else None
+        if album is None:
+            return  # file is not part of a track in an album, nothing to fetch
         files_processing.add(file.filename)
-        album = file.parent_item.album  # type: ignore
         assert isinstance(album, Album), "Album is not of type Album"
         metadata = file.metadata
         assert isinstance(metadata, Metadata), "Metadata is not of type Metadata"
