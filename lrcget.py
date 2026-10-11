@@ -10,16 +10,12 @@ from picard.plugin3.api import (
     Track,
 )
 
-import json
 import os
+import uuid
 from functools import partial
 from urllib.parse import (
     quote,
     urlencode,
-)
-from urllib.request import (
-    Request,
-    urlopen,
 )
 
 from PyQt6 import QtCore, QtGui, QtWidgets
@@ -106,7 +102,7 @@ def confirm_replace(parent, title, description):
         return False
 
 
-def show_search_table(api, parent, query, response, request_callback):
+def show_search_table(api, parent, query, response, album):
     parent = QtWidgets.QApplication.activeWindow() if parent is None else parent
     dialog = QtWidgets.QDialog(parent)
     dialog.setWindowTitle("Search Tracks")
@@ -191,12 +187,25 @@ def show_search_table(api, parent, query, response, request_callback):
         if not query:
             return
         try:
-            params = {"q": query}
-            response = request_callback(api, lrclib_search_url, params)
-            populate_table(response)
-            api.logger.debug(f"Search refreshed: {len(response)} results")
+            def refresh_done(new_response, reply, error):
+                nonlocal response
+                if error or not new_response:
+                    api.logger.warning(
+                        f"{plugin_name(api)}: search refresh failed: {error}"
+                    )
+                    return
+                response = new_response
+                try:
+                    populate_table(response)
+                except RuntimeError:
+                    return  # dialog was closed while request was in flight
+                api.logger.debug(
+                    f"{plugin_name(api)}: search refreshed: {len(response)} results"
+                )
+
+            search_refresh(api, album, query, refresh_done)
         except Exception as e:
-            api.logger.error(f"Error during search refresh: {e}")
+            api.logger.error(f"{plugin_name(api)}: Error during search refresh: {e}")
 
     search_button.clicked.connect(on_search_clicked)
     search_input.returnPressed.connect(on_search_clicked)
@@ -240,26 +249,24 @@ def _request(api, url, album, task_id, callback, queryargs=None, important=False
     )
 
 
-def _fetch_json(api, url, params):
-    try:
-        query = urlencode(params)
-        full_url = f"{url}?{query}"
+def search_refresh(api, album, query, on_done):
+    """Issue an LRCLIB search through Picard's web service (non-blocking)"""
+    task_id = f"search_refresh_{album.id}_{uuid.uuid4().hex[:8]}"
 
-        req = Request(
-            full_url,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
-            },
-        )
-        with urlopen(req, timeout=10) as resp:
-            if resp.status != 200:
-                api.logger.error(f"{plugin_name(api)}: HTTP error {resp.status} for {full_url}")
-                return {}
-            data = resp.read().decode("utf-8")
-            return json.loads(data)
-    except Exception as e:
-        api.logger.error(f"{plugin_name(api)}: fetch_json: failed to request {url} — {e}")
-        return {}
+    def handler(response, reply, error):
+        try:
+            on_done(response, reply, error)
+        finally:
+            api.complete_album_task(album, task_id)
+
+    _request(
+        api,
+        lrclib_search_url,
+        album,
+        task_id,
+        handler,
+        {"q": query},
+    )
 
 
 def fetch_lyrics(
@@ -276,14 +283,11 @@ def fetch_lyrics(
 
     if method == "search":
         url = lrclib_search_url
-        task_id = f"search_{title}_{album.id}"
+        task_id = f"search_{title}_{album.id}_{uuid.uuid4().hex[:8]}"
         queryargs = {"q": title}
     else:
         url = lrclib_get_url
-        task_id = f"get_{artist}_{title}_{album.id}" # I guess it is possible for two tracks to have the same id
-                                                     # if they have the same name, artist and album id. But that
-                                                     # seems weird to happen and if it does it just prints a warning
-                                                     # in Picard's logs when the tasks end
+        task_id = f"get_{artist}_{title}_{album.id}_{uuid.uuid4().hex[:8]}"
         queryargs = {
             "track_name": title,
             "artist_name": artist,
@@ -333,7 +337,7 @@ def process_response(
         if method == "search":
             parent = getattr(api.tagger, "window", None)
             response = show_search_table(
-                api, parent, metadata["title"], response, _fetch_json
+                api, parent, metadata["title"], response, album
             )
             if response is None:
                 return
