@@ -17,7 +17,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
       - name: Install system dependencies
         run: |
@@ -38,7 +38,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install PyQt6
+          pip install PyQt6 mutagen PyYAML
 
       - name: Clone picard
         run: |
@@ -51,7 +51,28 @@ jobs:
         run: pip install ruff mypy
 
       - name: Run ruff
-        run: ruff check lrcget.py
+        run: ruff check .
 
       - name: Run mypy
         run: mypy --ignore-missing-imports lrcget.py
+
+      - name: Validate MANIFEST.toml
+        run: |
+          python - <<'EOF'
+          import tomllib
+          src = open('picard-lib/picard/plugin3/validator.py').read()
+          ns = {}
+          exec(compile(src, 'validator.py', 'exec'), ns)
+          errors = ns['validate_manifest_dict'](tomllib.load(open('MANIFEST.toml', 'rb')))
+          assert not errors, errors
+          print('MANIFEST valid')
+          EOF
+
+      - name: Smoke test plugin import + entry point
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          mkdir -p _smoke
+          git archive HEAD | tar -x -C _smoke
+          python -c "from _smoke import enable; print('import + entry point OK')"
+          rm -rf _smoke
