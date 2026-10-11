@@ -32,12 +32,13 @@ jobs:
             libxcb-cursor0 \
             libxcb-xinerama0 \
             libxcb-xfixes0 \
-            libegl1
+            libegl1 \
+            libgl1
 
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install PyQt5
+          pip install PyQt6
 
       - name: Clone picard
         run: |
