@@ -60,10 +60,9 @@ jobs:
         run: |
           python - <<'EOF'
           import tomllib
-          src = open('picard-lib/picard/plugin3/validator.py').read()
-          ns = {}
-          exec(compile(src, 'validator.py', 'exec'), ns)
-          errors = ns['validate_manifest_dict'](tomllib.load(open('MANIFEST.toml', 'rb')))
+          from picard.plugin3.validator import validate_manifest_dict
+          with open('MANIFEST.toml', 'rb') as f:
+              errors = validate_manifest_dict(tomllib.load(f))
           assert not errors, errors
           print('MANIFEST valid')
           EOF
