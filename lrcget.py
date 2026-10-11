@@ -22,6 +22,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 
 lrclib_get_url = "https://lrclib.net/api/get"
 lrclib_search_url = "https://lrclib.net/api/search"
+GET_ON_LOAD_TIMEOUT = 10.0
 files_processing: set = set()
 
 
@@ -227,7 +228,17 @@ def show_search_table(api, parent, query, response, album):
         return None
 
 
-def _request(api, url, album, task_id, callback, queryargs=None, important=False):
+def _request(
+    api,
+    url,
+    album,
+    task_id,
+    callback,
+    queryargs=None,
+    important=False,
+    blocking=False,
+    timeout=None,
+):
     if not queryargs:
         queryargs = {}
 
@@ -240,12 +251,14 @@ def _request(api, url, album, task_id, callback, queryargs=None, important=False
             important=important,
             queryargs=queryargs,
         )
-    
+
     api.add_album_task(
         album,
         task_id,
         'Fetching data',
+        timeout=timeout,
         request_factory=create_request,
+        blocking=blocking,
     )
 
 
@@ -300,6 +313,8 @@ def fetch_lyrics(
         f"{plugin_name(api)}: {'GET' if method != 'search' else 'SEARCH'} {quote(url)}?{urlencode(queryargs)}"
     )
 
+    is_blocking = method == "get_on_load"
+
     _request(
         api,
         url,
@@ -307,6 +322,8 @@ def fetch_lyrics(
         task_id,
         partial(process_response, api, method, album, metadata, task_id, linked_files),
         queryargs,
+        blocking=is_blocking,
+        timeout=GET_ON_LOAD_TIMEOUT if is_blocking else None,
     )
 
 
