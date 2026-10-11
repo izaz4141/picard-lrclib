@@ -23,7 +23,7 @@ Keeps the plugin git-managed so Picard can update it.
   `https://github.com/izaz4141/picard-lrclib`.
   Optionally set **Ref/Tag** to a specific release or leave it blank for the latest `main`.
 - **CLI:** `picard-cli plugins install https://github.com/izaz4141/picard-lrclib`
-  To pin a release: `picard-cli plugins install https://github.com/izaz4141/picard-lrclib --ref v1.0.0`
+  To pin a release: `picard-cli plugins install https://github.com/izaz4141/picard-lrclib --ref 2.0.0`
 
 ### Option 2 — Install from a Release Archive
 - Download the latest release archive from the

@@ -190,7 +190,7 @@ def show_search_table(api, parent, query, response, album):
         try:
             def refresh_done(new_response, reply, error):
                 nonlocal response
-                if error or not new_response:
+                if error:
                     api.logger.warning(
                         f"{plugin_name(api)}: search refresh failed: {error}"
                     )
