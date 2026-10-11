@@ -30,6 +30,11 @@ lrclib_search_url = "https://lrclib.net/api/search"
 files_processing: set = set()
 
 
+def plugin_name(api) -> str:
+    """Display name for this plugin, taken from MANIFEST.toml."""
+    return api.manifest.name_i18n()
+
+
 def format_durasi(durasi: int) -> str:
     hours, remainder = divmod(int(durasi), 3600)
     minutes, seconds = divmod(remainder, 60)
@@ -78,11 +83,9 @@ def get_track_duration(api, track: Track) -> int:
         length = parse_duration(str(metadata["~length"]))
     else:
         api.logger.warning(
-            '{}: length NOT found for in metadata for track "{}", falling back to file length'.format(
-                "LRCLIB Lyrics", metadata["title"]
-            )
+            f'{plugin_name(api)}: length NOT found for in metadata for track "{metadata["title"]}", falling back to file length'
         )
-        assert track.num_linked_files > 0, "No files linked to {}".format(metadata["title"])
+        assert track.num_linked_files > 0, f"No files linked to {metadata['title']}"
         tr_metadata = track.files[0].metadata
         if tr_metadata["~length"]:
             length = parse_duration(str(tr_metadata["~length"]))
@@ -252,12 +255,12 @@ def _fetch_json(api, url, params):
         )
         with urlopen(req, timeout=10) as resp:
             if resp.status != 200:
-                api.logger.error(f"LRCLIB Lyrics: HTTP error {resp.status} for {full_url}")
+                api.logger.error(f"{plugin_name(api)}: HTTP error {resp.status} for {full_url}")
                 return {}
             data = resp.read().decode("utf-8")
             return json.loads(data)
     except Exception as e:
-        api.logger.error(f"LRCLIB Lyrics: fetch_json: failed to request {url} — {e}")
+        api.logger.error(f"{plugin_name(api)}: fetch_json: failed to request {url} — {e}")
         return {}
 
 
@@ -293,12 +296,7 @@ def fetch_lyrics(
 
     # album._requests += 1
     api.logger.debug(
-        "{}: {} {}?{}".format(
-            "LRCLIB Lyrics",
-            "GET" if method != "search" else "SEARCH",
-            quote(url),
-            urlencode(queryargs),
-        )
+        f"{plugin_name(api)}: {'GET' if method != 'search' else 'SEARCH'} {quote(url)}?{urlencode(queryargs)}"
     )
 
     _request(
@@ -326,9 +324,7 @@ def process_response(
         response and isinstance(response, dict) and not response.get("id", False)
     ):
         api.logger.warning(
-            '{}: lyrics NOT found for track "{}" by {}'.format(
-                "LRCLIB Lyrics", metadata["title"], metadata["artist"]
-            )
+            f'{plugin_name(api)}: lyrics NOT found for track "{metadata["title"]}" by {metadata["artist"]}'
         )
         if method == "get_on_save":
             for file in linked_files:
@@ -397,9 +393,9 @@ def process_response(
                 and (method not in ["get_on_load", "get_on_save"])
             ):
                 title = "Overwrite file lyrics?"
-                desc = ('Overwrite Lyrics for "{}".\n\n{}').format(
-                    file.metadata.get("title", "<file>"),
-                    truncate_text(lyrics, 5, 42),
+                desc = (
+                    f'Overwrite Lyrics for "{file.metadata.get("title", "<file>")}".\n\n'
+                    f"{truncate_text(lyrics, 5, 42)}"
                 )
                 parent = getattr(file, "tagger", None)
                 if not confirm_replace(getattr(parent, "window", None), title, desc):
@@ -414,14 +410,14 @@ def process_response(
                             os.remove(old_file)
                         except Exception as e:
                             api.logger.error(
-                                f"LRCLIB Lyrics: Failed to delete {old_file}: {e}"
+                                f"{plugin_name(api)}: Failed to delete {old_file}: {e}"
                             )
 
                 try:
                     with open(file_lrc, "w", encoding="utf-8") as f:
                         f.write(lyrics)
                 except Exception as e:
-                    api.logger.error(f"LRCLIB Lyrics: Failed to write .lrc file: {e}")
+                    api.logger.error(f"{plugin_name(api)}: Failed to write .lrc file: {e}")
                     parent_widget = getattr(
                         getattr(file, "tagger", None), "window", None
                     )
@@ -433,16 +429,12 @@ def process_response(
                         f"Could not save lyrics file:\n\n{file_lrc}\n\nError: {e}",
                     )
         api.logger.debug(
-            '{}: lyrics loaded for track "{}" by {}'.format(
-                "LRCLIB Lyrics", metadata["title"], metadata["artist"]
-            )
+            f'{plugin_name(api)}: lyrics loaded for track "{metadata["title"]}" by {metadata["artist"]}'
         )
 
     except (TypeError, KeyError, ValueError) as e:
         api.logger.error(
-            '{}: lyrics NOT loaded for track "{}" by {}: {}'.format(
-                "LRCLIB Lyrics", metadata["title"], metadata["artist"], e
-            ),
+            f'{plugin_name(api)}: lyrics NOT loaded for track "{metadata["title"]}" by {metadata["artist"]}: {e}',
             exc_info=True,
         )
 
@@ -458,7 +450,6 @@ def process_response(
 
 class LrclibLyricsOptionsPage(OptionsPage):
     NAME = "lrclib_lyrics"
-    TITLE = "LRCLIB Lyrics"
     PARENT = "plugins"
 
     AUDIO_EXTENSIONS = {
@@ -584,10 +575,10 @@ class LrclibLyricsOptionsPage(OptionsPage):
             )
 
             if not root_dir:
-                self.api.logger.info(f"LRCLIB Lyrics: User cancelled directory selection")
+                self.api.logger.info(f"{plugin_name(self.api)}: User cancelled directory selection")
                 return
 
-            self.api.logger.info(f"LRCLIB Lyrics: Starting recursive scan of {root_dir}")
+            self.api.logger.info(f"{plugin_name(self.api)}: Starting recursive scan of {root_dir}")
             orphaned_count = self._clean_directory_recursive(root_dir)
 
             if orphaned_count > 0:
@@ -596,21 +587,21 @@ class LrclibLyricsOptionsPage(OptionsPage):
                     "Cleanup Complete",
                     f"Removed {orphaned_count} orphaned .lrc file{'s' if orphaned_count != 1 else ''}",
                 )
-                self.api.logger.info(f"LRCLIB Lyrics: Cleaned {orphaned_count} orphaned .lrc files")
+                self.api.logger.info(f"{plugin_name(self.api)}: Cleaned {orphaned_count} orphaned .lrc files")
             else:
                 QtWidgets.QMessageBox.information(
                     parent, "Cleanup Complete", "No orphaned .lrc files found"
                 )
-                self.api.logger.info(f"LRCLIB Lyrics: No orphaned .lrc files found")
+                self.api.logger.info(f"{plugin_name(self.api)}: No orphaned .lrc files found")
 
         except Exception as err:
             self.api.logger.error(
-                f"LRCLIB Lyrics: Error cleaning orphaned files: {err}", exc_info=True
+                f"{plugin_name(self.api)}: Error cleaning orphaned files: {err}", exc_info=True
             )
 
     def _clean_directory_recursive(self, root_dir):
         if not os.path.isdir(root_dir):
-            self.api.logger.warning(f"LRCLIB Lyrics: Directory does not exist: {root_dir}")
+            self.api.logger.warning(f"{plugin_name(self.api)}: Directory does not exist: {root_dir}")
             return 0
 
         orphaned_count = 0
@@ -635,15 +626,15 @@ class LrclibLyricsOptionsPage(OptionsPage):
                             os.remove(lrc_path)
                             orphaned_count += 1
                             self.api.logger.debug(
-                                f"LRCLIB Lyrics: Deleted orphaned file: {lrc_path}"
+                                f"{plugin_name(self.api)}: Deleted orphaned file: {lrc_path}"
                             )
                         except Exception as e:
                             self.api.logger.error(
-                                f"LRCLIB Lyrics: Failed to delete {lrc_path}: {e}"
+                                f"{plugin_name(self.api)}: Failed to delete {lrc_path}: {e}"
                             )
 
         except Exception as e:
-            self.api.logger.error(f"LRCLIB Lyrics: Error scanning directory {root_dir}: {e}")
+            self.api.logger.error(f"{plugin_name(self.api)}: Error scanning directory {root_dir}: {e}")
 
         return orphaned_count
 
@@ -659,7 +650,7 @@ def get_on_load(api, track: Track, file: File) -> None:
         length = get_track_duration(api, track)
         fetch_lyrics(api, "get_on_load", album, track.metadata, track.files, length)
     except Exception as err:
-        api.logger.error(f"LRCLIB Lyrics: Error in get_on_load: {err}")
+        api.logger.error(f"{plugin_name(api)}: Error in get_on_load: {err}")
 
 
 def get_on_save(api, file: File) -> None:
@@ -681,7 +672,7 @@ def get_on_save(api, file: File) -> None:
         assert isinstance(length, int), "Length is not of type integer"
         fetch_lyrics(api, "get_on_save", album, metadata, [file], length)
     except Exception as err:
-        api.logger.error(f"LRCLIB Lyrics: Error in get_on_save: {err}")
+        api.logger.error(f"{plugin_name(api)}: Error in get_on_save: {err}")
         files_processing.discard(file.filename)
 
 
@@ -703,11 +694,11 @@ class LrcLibLyricsGet(BaseAction):
     def callback(self, objs):
         for item in (t for t in objs if isinstance(t, Track) or isinstance(t, Album)):
             if isinstance(item, Track):
-                self.api.logger.debug("{}: {}, {}".format("LRCLIB Lyrics", item, item.album))
+                self.api.logger.debug(f"{plugin_name(self.api)}: {item}, {item.album}")
                 self.execute_on_track(item)
             elif isinstance(item, Album):
                 for track in item.tracks:
-                    self.api.logger.debug("{}: {}, {}".format("LRCLIB Lyrics", track, item))
+                    self.api.logger.debug(f"{plugin_name(self.api)}: {track}, {item}")
                     self.execute_on_track(track)
 
 
@@ -725,11 +716,11 @@ class LrcLibLyricsSearch(BaseAction):
     def callback(self, objs):
         for item in (t for t in objs if isinstance(t, Track) or isinstance(t, Album)):
             if isinstance(item, Track):
-                self.api.logger.debug("{}: {}, {}".format("LRCLIB Lyrics", item, item.album))
+                self.api.logger.debug(f"{plugin_name(self.api)}: {item}, {item.album}")
                 self.execute_on_track(item)
             elif isinstance(item, Album):
                 for track in item.tracks:
-                    self.api.logger.debug("{}: {}, {}".format("LRCLIB Lyrics", track, item))
+                    self.api.logger.debug(f"{plugin_name(self.api)}: {track}, {item}")
                     self.execute_on_track(track)
 
 
