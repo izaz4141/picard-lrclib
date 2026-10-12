@@ -51,10 +51,10 @@ jobs:
         run: pip install ruff mypy
 
       - name: Run ruff
-        run: ruff check .
+        run: ruff check . --exclude picard-lib
 
       - name: Run mypy
-        run: mypy --ignore-missing-imports lrcget.py
+        run: mypy --ignore-missing-imports . --exclude picard-lib
 
       - name: Validate MANIFEST.toml
         run: |
