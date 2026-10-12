@@ -71,6 +71,7 @@ def parse_duration(time_str: str):
 
     return total_seconds
 
+
 def get_track_duration(api, track: Track) -> int:
     metadata = track.metadata
     assert isinstance(metadata, Metadata), "Metadata is not of type Metadata"
@@ -85,8 +86,11 @@ def get_track_duration(api, track: Track) -> int:
         tr_metadata = track.files[0].metadata
         if tr_metadata["~length"]:
             length = parse_duration(str(tr_metadata["~length"]))
-    assert isinstance(length, int), "Length is type " + str(type(length))+ ", not of type integer"
+    assert isinstance(length, int), (
+        "Length is type " + str(type(length)) + ", not of type integer"
+    )
     return length
+
 
 def confirm_replace(parent, title, description):
     try:
@@ -95,7 +99,8 @@ def confirm_replace(parent, title, description):
             parent,
             title,
             description,
-            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.Yes
+            | QtWidgets.QMessageBox.StandardButton.No,
             QtWidgets.QMessageBox.StandardButton.No,
         )
         return reply == QtWidgets.QMessageBox.StandardButton.Yes
@@ -132,7 +137,9 @@ def show_search_table(api, parent, query, response, album):
     vheader.setVisible(False)
     hheader = table.horizontalHeader()
     assert hheader is not None, "HHeader is unexpectedly None"
-    hheader.setDefaultAlignment(QtCore.Qt.AlignmentFlag.AlignHCenter | QtCore.Qt.AlignmentFlag.AlignVCenter)  # type: ignore
+    hheader.setDefaultAlignment(
+        QtCore.Qt.AlignmentFlag.AlignHCenter | QtCore.Qt.AlignmentFlag.AlignVCenter
+    )  # type: ignore
     hheader.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
     hheader.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.Stretch)
     hheader.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.Interactive)
@@ -145,7 +152,8 @@ def show_search_table(api, parent, query, response, album):
     layout.addWidget(table)
 
     button_box = QtWidgets.QDialogButtonBox(
-        QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+        QtWidgets.QDialogButtonBox.StandardButton.Ok
+        | QtWidgets.QDialogButtonBox.StandardButton.Cancel
     )
     layout.addWidget(button_box)
 
@@ -188,6 +196,7 @@ def show_search_table(api, parent, query, response, album):
         if not query:
             return
         try:
+
             def refresh_done(new_response, reply, error):
                 nonlocal response
                 if error:
@@ -255,7 +264,7 @@ def _request(
     api.add_album_task(
         album,
         task_id,
-        'Fetching data',
+        "Fetching data",
         timeout=timeout,
         request_factory=create_request,
         blocking=blocking,
@@ -433,7 +442,9 @@ def process_response(
                     with open(file_lrc, "w", encoding="utf-8") as f:
                         f.write(lyrics)
                 except Exception as e:
-                    api.logger.error(f"{plugin_name(api)}: Failed to write .lrc file: {e}")
+                    api.logger.error(
+                        f"{plugin_name(api)}: Failed to write .lrc file: {e}"
+                    )
                     parent_widget = getattr(api.tagger, "window", None)
                     if not isinstance(parent_widget, QtWidgets.QWidget):
                         parent_widget = QtWidgets.QApplication.activeWindow()
@@ -498,7 +509,6 @@ class LrclibLyricsOptionsPage(OptionsPage):
         "xwma",
     }
 
-
     def __init__(self, parent=None):
         super().__init__(parent)
         self.box = QtWidgets.QVBoxLayout(self)
@@ -545,7 +555,10 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.box.addWidget(self.cleanup_button)
 
         self.spacer = QtWidgets.QSpacerItem(
-            0, 0, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding
+            0,
+            0,
+            QtWidgets.QSizePolicy.Policy.Minimum,
+            QtWidgets.QSizePolicy.Policy.Expanding,
         )
         self.box.addItem(self.spacer)
 
@@ -563,7 +576,9 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.get_on_save.setChecked(bool(self.api.plugin_config["get_on_save"]))
         self.auto_overwrite.setChecked(bool(self.api.plugin_config["auto_overwrite"]))
         self.save_lrc.setChecked(bool(self.api.plugin_config["save_lrc_file"]))
-        self.ignore_instrumental.setChecked(bool(self.api.plugin_config["ignore_instrumental"]))
+        self.ignore_instrumental.setChecked(
+            bool(self.api.plugin_config["ignore_instrumental"])
+        )
         self.plain_as_txt.setChecked(bool(self.api.plugin_config["plain_as_txt"]))
 
     def save(self):
@@ -571,7 +586,9 @@ class LrclibLyricsOptionsPage(OptionsPage):
         self.api.plugin_config["get_on_save"] = self.get_on_save.isChecked()
         self.api.plugin_config["auto_overwrite"] = self.auto_overwrite.isChecked()
         self.api.plugin_config["save_lrc_file"] = self.save_lrc.isChecked()
-        self.api.plugin_config["ignore_instrumental"] = self.ignore_instrumental.isChecked()
+        self.api.plugin_config["ignore_instrumental"] = (
+            self.ignore_instrumental.isChecked()
+        )
         self.api.plugin_config["plain_as_txt"] = self.plain_as_txt.isChecked()
 
     def clean_orphaned_lrc_files(self):
@@ -587,10 +604,14 @@ class LrclibLyricsOptionsPage(OptionsPage):
             )
 
             if not root_dir:
-                self.api.logger.info(f"{plugin_name(self.api)}: User cancelled directory selection")
+                self.api.logger.info(
+                    f"{plugin_name(self.api)}: User cancelled directory selection"
+                )
                 return
 
-            self.api.logger.info(f"{plugin_name(self.api)}: Starting recursive scan of {root_dir}")
+            self.api.logger.info(
+                f"{plugin_name(self.api)}: Starting recursive scan of {root_dir}"
+            )
             orphaned_count = self._clean_directory_recursive(root_dir)
 
             if orphaned_count > 0:
@@ -599,21 +620,28 @@ class LrclibLyricsOptionsPage(OptionsPage):
                     "Cleanup Complete",
                     f"Removed {orphaned_count} orphaned .lrc file{'s' if orphaned_count != 1 else ''}",
                 )
-                self.api.logger.info(f"{plugin_name(self.api)}: Cleaned {orphaned_count} orphaned .lrc files")
+                self.api.logger.info(
+                    f"{plugin_name(self.api)}: Cleaned {orphaned_count} orphaned .lrc files"
+                )
             else:
                 QtWidgets.QMessageBox.information(
                     parent, "Cleanup Complete", "No orphaned .lrc files found"
                 )
-                self.api.logger.info(f"{plugin_name(self.api)}: No orphaned .lrc files found")
+                self.api.logger.info(
+                    f"{plugin_name(self.api)}: No orphaned .lrc files found"
+                )
 
         except Exception as err:
             self.api.logger.error(
-                f"{plugin_name(self.api)}: Error cleaning orphaned files: {err}", exc_info=True
+                f"{plugin_name(self.api)}: Error cleaning orphaned files: {err}",
+                exc_info=True,
             )
 
     def _clean_directory_recursive(self, root_dir):
         if not os.path.isdir(root_dir):
-            self.api.logger.warning(f"{plugin_name(self.api)}: Directory does not exist: {root_dir}")
+            self.api.logger.warning(
+                f"{plugin_name(self.api)}: Directory does not exist: {root_dir}"
+            )
             return 0
 
         orphaned_count = 0
@@ -646,7 +674,9 @@ class LrclibLyricsOptionsPage(OptionsPage):
                             )
 
         except Exception as e:
-            self.api.logger.error(f"{plugin_name(self.api)}: Error scanning directory {root_dir}: {e}")
+            self.api.logger.error(
+                f"{plugin_name(self.api)}: Error scanning directory {root_dir}: {e}"
+            )
 
         return orphaned_count
 
@@ -704,7 +734,6 @@ class LrcLibLyricsGet(BaseAction):
             fetch_lyrics(self.api, "get", album, track.metadata, track.files, length)
         except Exception as err:
             self.api.logger.error(err)
-
 
     def callback(self, objs):
         for item in (t for t in objs if isinstance(t, Track) or isinstance(t, Album)):
