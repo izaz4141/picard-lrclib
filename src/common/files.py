@@ -1,0 +1,117 @@
+from __future__ import annotations
+
+import os
+
+from picard.plugin3.api import PluginApi
+
+from .util import plugin_name
+
+
+def lrc_base_path(filename: str) -> str:
+    """Return the audio file path without its extension, used as the base for
+    sidecar ``.lrc``/``.txt`` files."""
+    dirname = os.path.dirname(filename)
+    filename_no_ext = os.path.splitext(os.path.basename(filename))[0]
+    return f"{dirname}/{filename_no_ext}"
+
+
+def lyrics_lrc_path(filename: str, is_plain: bool, plain_as_txt: bool) -> str:
+    """Return the sidecar path matching the given audio filename."""
+    ext = ".txt" if (is_plain and plain_as_txt) else ".lrc"
+    return f"{lrc_base_path(filename)}{ext}"
+
+
+def read_lyrics_file(path: str) -> str:
+    """Read a lyrics file and return its contents."""
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def remove_lrc_files(api: PluginApi, base_path: str) -> None:
+    """Delete stale .lrc and .txt sidecars before rewriting lyrics on save."""
+    for old_ext in (".txt", ".lrc"):
+        old_file = base_path + old_ext
+        if os.path.exists(old_file):
+            try:
+                os.remove(old_file)
+            except Exception:
+                api.logger.exception(f"{plugin_name(api)}: Failed to delete {old_file}")
+
+
+def write_lyrics_file(api: PluginApi, file_path: str, lyrics: str) -> str | None:
+    """Write lyrics to a file, returning an error message on failure or None
+    on success."""
+    try:
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(lyrics)
+    except Exception as e:
+        api.logger.exception(f"{plugin_name(api)}: Failed to write .lrc file")
+        return str(e)
+    return None
+
+
+def supported_audio_extensions(api: PluginApi) -> frozenset[str]:
+    """Return Picard's supported audio extensions, lowercase and dotted."""
+    return frozenset(
+        ext if ext.startswith(".") else f".{ext}"
+        for ext in api.tagger.format_registry.supported_extensions()
+    )
+
+
+def find_orphaned_sidecars(api: PluginApi, root_dir: str) -> list[str]:
+    """Return paths of orphaned lyrics sidecars under a directory.
+
+    A sidecar is orphaned when no audio file in the same directory shares
+    its base name, compared without regard to case. The list is empty when
+    the directory or the audio format list is unavailable.
+    """
+    if not os.path.isdir(root_dir):
+        api.logger.warning(f"{plugin_name(api)}: Directory does not exist: {root_dir}")
+        return []
+
+    audio_extensions = supported_audio_extensions(api)
+    if not audio_extensions:
+        api.logger.warning(
+            f"{plugin_name(api)}: No supported audio formats found, aborting cleanup"
+        )
+        return []
+
+    sidecar_extensions = {".lrc"}
+    if api.plugin_config["plain_as_txt"]:
+        sidecar_extensions.add(".txt")
+
+    orphaned: list[str] = []
+
+    try:
+        for dirpath, _dirnames, filenames in os.walk(root_dir):
+            audio_stems: set[str] = set()
+            for name in filenames:
+                stem, ext = os.path.splitext(name)
+                if ext.lower() in audio_extensions:
+                    audio_stems.add(stem.lower())
+
+            for name in filenames:
+                stem, ext = os.path.splitext(name)
+                if ext.lower() not in sidecar_extensions:
+                    continue
+                if stem.lower() in audio_stems:
+                    continue
+                orphaned.append(os.path.join(dirpath, name))
+
+    except Exception:
+        api.logger.exception(f"{plugin_name(api)}: Error scanning directory {root_dir}")
+
+    return orphaned
+
+
+def remove_sidecars(api: PluginApi, paths: list[str]) -> int:
+    """Delete the given files and return the number removed."""
+    removed = 0
+    for path in paths:
+        try:
+            os.remove(path)
+            removed += 1
+            api.logger.debug(f"{plugin_name(api)}: Deleted orphaned file: {path}")
+        except Exception:
+            api.logger.exception(f"{plugin_name(api)}: Failed to delete {path}")
+    return removed
