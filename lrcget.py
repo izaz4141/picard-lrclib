@@ -8,6 +8,9 @@ from urllib.parse import (
     quote,
     urlencode,
 )
+
+from PyQt6 import QtCore, QtGui, QtWidgets
+
 from picard.plugin3.api import (
     Album,
     BaseAction,
@@ -17,7 +20,6 @@ from picard.plugin3.api import (
     PluginApi,
     Track,
 )
-from PyQt6 import QtCore, QtGui, QtWidgets
 
 lrclib_get_url = "https://lrclib.net/api/get"
 lrclib_search_url = "https://lrclib.net/api/search"
@@ -473,39 +475,41 @@ class LrclibLyricsOptionsPage(OptionsPage):
     NAME = "lrclib_lyrics"
     PARENT = "plugins"
 
-    AUDIO_EXTENSIONS: ClassVar[frozenset[str]] = frozenset({
-        "aac",
-        "ac3",
-        "aif",
-        "aifc",
-        "aiff",
-        "ape",
-        "asf",
-        "dff",
-        "dsf",
-        "eac3",
-        "flac",
-        "kar",
-        "m2a",
-        "ofr",
-        "ofs",
-        "oga",
-        "ogg",
-        "oggflac",
-        "oggtheora",
-        "ogv",
-        "ogx",
-        "opus",
-        "spx",
-        "tak",
-        "tta",
-        "wav",
-        "webm",
-        "wma",
-        "wmv",
-        "wv",
-        "xwma",
-    })
+    AUDIO_EXTENSIONS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "aac",
+            "ac3",
+            "aif",
+            "aifc",
+            "aiff",
+            "ape",
+            "asf",
+            "dff",
+            "dsf",
+            "eac3",
+            "flac",
+            "kar",
+            "m2a",
+            "ofr",
+            "ofs",
+            "oga",
+            "ogg",
+            "oggflac",
+            "oggtheora",
+            "ogv",
+            "ogx",
+            "opus",
+            "spx",
+            "tak",
+            "tta",
+            "wav",
+            "webm",
+            "wma",
+            "wmv",
+            "wv",
+            "xwma",
+        }
+    )
 
     def __init__(self, parent=None):
         super().__init__(parent)
