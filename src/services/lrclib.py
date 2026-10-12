@@ -169,10 +169,10 @@ def process_response(
             file.metadata["lyrics"] = lyrics
             if api.plugin_config["save_lrc_file"]:
                 remove_lrc_files(api, base_path)
-                error = write_lyrics_file(api, file_lrc, lyrics)
-                if error is not None:
+                write_error = write_lyrics_file(api, file_lrc, lyrics)
+                if write_error is not None:
                     parent = getattr(api.tagger, "window", None)
-                    show_write_error(parent, file_lrc, error)
+                    show_write_error(parent, file_lrc, write_error)
 
         api.logger.debug(
             f'{plugin_name(api)}: lyrics loaded for track "{metadata["title"]}" by {metadata["artist"]}'
