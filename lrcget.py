@@ -1,5 +1,15 @@
 from __future__ import annotations
-from picard.plugin3.api import PluginApi
+
+import os
+import uuid
+from functools import partial
+from typing import ClassVar
+from urllib.parse import (
+    quote,
+    urlencode,
+)
+
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 from picard.plugin3.api import (
     Album,
@@ -7,18 +17,9 @@ from picard.plugin3.api import (
     File,
     Metadata,
     OptionsPage,
+    PluginApi,
     Track,
 )
-
-import os
-import uuid
-from functools import partial
-from urllib.parse import (
-    quote,
-    urlencode,
-)
-
-from PyQt6 import QtCore, QtGui, QtWidgets
 
 lrclib_get_url = "https://lrclib.net/api/get"
 lrclib_search_url = "https://lrclib.net/api/search"
@@ -457,10 +458,9 @@ def process_response(
             f'{plugin_name(api)}: lyrics loaded for track "{metadata["title"]}" by {metadata["artist"]}'
         )
 
-    except (TypeError, KeyError, ValueError) as e:
-        api.logger.error(
-            f'{plugin_name(api)}: lyrics NOT loaded for track "{metadata["title"]}" by {metadata["artist"]}: {e}',
-            exc_info=True,
+    except (TypeError, KeyError, ValueError):
+        api.logger.exception(
+            f'{plugin_name(api)}: lyrics NOT loaded for track "{metadata["title"]}" by {metadata["artist"]}'
         )
 
     finally:
@@ -475,7 +475,7 @@ class LrclibLyricsOptionsPage(OptionsPage):
     NAME = "lrclib_lyrics"
     PARENT = "plugins"
 
-    AUDIO_EXTENSIONS = {
+    AUDIO_EXTENSIONS: ClassVar[frozenset[str]] = frozenset({
         "aac",
         "ac3",
         "aif",
@@ -507,7 +507,7 @@ class LrclibLyricsOptionsPage(OptionsPage):
         "wmv",
         "wv",
         "xwma",
-    }
+    })
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -631,10 +631,9 @@ class LrclibLyricsOptionsPage(OptionsPage):
                     f"{plugin_name(self.api)}: No orphaned .lrc files found"
                 )
 
-        except Exception as err:
-            self.api.logger.error(
-                f"{plugin_name(self.api)}: Error cleaning orphaned files: {err}",
-                exc_info=True,
+        except Exception:
+            self.api.logger.exception(
+                f"{plugin_name(self.api)}: Error cleaning orphaned files"
             )
 
     def _clean_directory_recursive(self, root_dir):
@@ -736,7 +735,7 @@ class LrcLibLyricsGet(BaseAction):
             self.api.logger.error(err)
 
     def callback(self, objs):
-        for item in (t for t in objs if isinstance(t, Track) or isinstance(t, Album)):
+        for item in (t for t in objs if isinstance(t, (Track, Album))):
             if isinstance(item, Track):
                 self.api.logger.debug(f"{plugin_name(self.api)}: {item}, {item.album}")
                 self.execute_on_track(item)
@@ -758,7 +757,7 @@ class LrcLibLyricsSearch(BaseAction):
             self.api.logger.error(err)
 
     def callback(self, objs):
-        for item in (t for t in objs if isinstance(t, Track) or isinstance(t, Album)):
+        for item in (t for t in objs if isinstance(t, (Track, Album))):
             if isinstance(item, Track):
                 self.api.logger.debug(f"{plugin_name(self.api)}: {item}, {item.album}")
                 self.execute_on_track(item)

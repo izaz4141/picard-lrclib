@@ -1,0 +1,4 @@
+exclude = ["picard-lib", "picard", "build", "dist", ".git", "__pycache__"]
+
+[lint]
+ignore = ["N999", "BLE001"]  # Allow hyphenated names and broad exception catches in plugin code
