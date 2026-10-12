@@ -8,9 +8,6 @@ from urllib.parse import (
     quote,
     urlencode,
 )
-
-from PyQt6 import QtCore, QtGui, QtWidgets
-
 from picard.plugin3.api import (
     Album,
     BaseAction,
@@ -20,6 +17,7 @@ from picard.plugin3.api import (
     PluginApi,
     Track,
 )
+from PyQt6 import QtCore, QtGui, QtWidgets
 
 lrclib_get_url = "https://lrclib.net/api/get"
 lrclib_search_url = "https://lrclib.net/api/search"
