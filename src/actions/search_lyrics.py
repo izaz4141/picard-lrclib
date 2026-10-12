@@ -17,6 +17,8 @@ class LrcLibLyricsSearch(LrcLibAction):
         try:
             if not track.files:  # If it's not in your local file then ignore
                 return
+            album = track.album
+            assert isinstance(album, Album), "Album is not of type Album"
             fetch_lyrics(self.api, "search", track.album, track.metadata, track.files)
         except Exception:
             self.api.logger.exception(
