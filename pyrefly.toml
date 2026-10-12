@@ -1,0 +1,16 @@
+# Pyrefly configuration — https://pyrefly.org/en/docs/configuration/
+
+# Type-check only this plugin (root package entry point + src/).
+project-includes = ["__init__.py", "src"]
+
+# Don't report on the cloned Picard source or build/cache dirs.
+project-excludes = ["picard/**", "picard-lib/**", "_smoke/**", "build/**", "dist/**", ".ruff_cache/**"]
+
+# Resolve the plugin's own package root for relative imports (from .src...).
+search-path = ["."]
+# This repo nests a `src/` without __init__.py inside the package; stop Pyrefly's
+# `src/`/`__init__.py`-parent heuristics from misreading it as a src-layout.
+disable-search-path-heuristics = true
+
+python-platform = "linux"
+python-version = "3.12"

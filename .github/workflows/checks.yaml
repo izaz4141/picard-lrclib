@@ -48,13 +48,13 @@ jobs:
         run: echo "PYTHONPATH=${{ github.workspace }}/picard-lib:$PYTHONPATH" >> $GITHUB_ENV
 
       - name: Install linting tools
-        run: pip install ruff mypy
+        run: pip install ruff pyrefly
 
       - name: Run ruff
         run: ruff check . --exclude picard-lib
 
-      - name: Run mypy
-        run: mypy --ignore-missing-imports . --exclude picard-lib
+      - name: Run pyrefly
+        run: pyrefly check --output-format=github
 
       - name: Validate MANIFEST.toml
         run: |
