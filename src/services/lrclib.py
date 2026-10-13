@@ -135,6 +135,7 @@ def process_response(
             file_lrc = lyrics_lrc_path(
                 full_path, is_plain, api.plugin_config["plain_as_txt"]
             )
+            file_lyrics = lyrics
 
             has_metadata_lyrics = bool(file.metadata.get("lyrics"))
             has_lrc_file = os.path.exists(file_lrc)
@@ -145,10 +146,10 @@ def process_response(
                 and api.plugin_config["save_lrc_file"]
                 and method != "search"
             ):
-                lyrics = file.metadata.get("lyrics")
-                assert isinstance(lyrics, str), "Lyrics is not of type string"
+                file_lyrics = file.metadata.get("lyrics")
+                assert isinstance(file_lyrics, str), "Lyrics is not of type string"
             elif has_lrc_file and not has_metadata_lyrics and method != "search":
-                lyrics = read_lyrics_file(file_lrc)
+                file_lyrics = read_lyrics_file(file_lrc)
             elif (
                 (
                     (has_metadata_lyrics and has_lrc_file)
@@ -160,15 +161,15 @@ def process_response(
                 title = "Overwrite file lyrics?"
                 desc = (
                     f'Overwrite Lyrics for "{file.metadata.get("title", "<file>")}".\n\n'
-                    f"{truncate_text(lyrics, 5, 42)}"
+                    f"{truncate_text(file_lyrics, 5, 42)}"
                 )
                 parent = getattr(api.tagger, "window", None)
                 if not confirm_yes_no(api.logger, parent, title, desc):
                     return
 
-            file.metadata["lyrics"] = lyrics
+            file.metadata["lyrics"] = file_lyrics
             if api.plugin_config["save_lrc_file"]:
-                write_error = write_lyrics_file(api, file_lrc, lyrics)
+                write_error = write_lyrics_file(api, file_lrc, file_lyrics)
                 if write_error is not None:
                     parent = getattr(api.tagger, "window", None)
                     show_critical(
