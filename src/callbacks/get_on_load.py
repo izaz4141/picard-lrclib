@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from picard.plugin3.api import (
     Album,
     File,
@@ -25,6 +27,13 @@ def get_on_load(api: PluginApi, track: Track, file: File) -> None:
         album = track.album
         assert isinstance(album, Album), "Album is not of type Album"
         length = get_track_duration(api, track)
-        fetch_lyrics(api, "get_on_load", album, track.metadata, track.files, length)
+        fetch_lyrics(
+            api,
+            "get_on_load",
+            album,
+            track.metadata,
+            cast(list[File], track.files),
+            length,
+        )
     except Exception:
         api.logger.exception(f"{plugin_name(api)}: Error in get_on_load for {track}")

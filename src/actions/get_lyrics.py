@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from picard.plugin3.api import Album, Track
+from typing import cast
+
+from picard.plugin3.api import Album, File, Track
 
 from ..common.metadata import get_track_duration
 from ..common.util import plugin_name
@@ -21,7 +23,14 @@ class LrcLibLyricsGet(LrcLibAction):
             album = track.album
             assert isinstance(album, Album), "Album is not of type Album"
             length = get_track_duration(self.api, track)
-            fetch_lyrics(self.api, "get", album, track.metadata, track.files, length)
+            fetch_lyrics(
+                self.api,
+                "get",
+                album,
+                track.metadata,
+                cast(list[File], track.files),
+                length,
+            )
         except Exception:
             self.api.logger.exception(
                 f"{plugin_name(self.api)}: Error getting lyrics automatically for {track}"
