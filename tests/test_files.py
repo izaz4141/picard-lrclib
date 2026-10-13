@@ -152,14 +152,14 @@ def test_find_orphaned_sidecars(tmp_path: Path, make_api: Callable[..., Any]) ->
     assert find_orphaned_sidecars(api, str(tmp_path)) == [str(tmp_path / "orphan.lrc")]
 
 
-def test_find_orphaned_sidecars_case_insensitive(
+def test_find_orphaned_sidecars_case_sensitive(
     tmp_path: Path, make_api: Callable[..., Any]
 ) -> None:
     api = make_api(config={"plain_as_txt": False})
     (tmp_path / "Song.MP3").write_text("", encoding="utf-8")
     (tmp_path / "song.lrc").write_text("", encoding="utf-8")
 
-    assert find_orphaned_sidecars(api, str(tmp_path)) == []
+    assert find_orphaned_sidecars(api, str(tmp_path)) == [str(tmp_path / "song.lrc")]
 
 
 def test_find_orphaned_sidecars_txt(

@@ -97,12 +97,7 @@ def has_matching_audio(api: PluginApi, base_path: str) -> bool:
 
 
 def find_orphaned_sidecars(api: PluginApi, root_dir: str) -> list[str]:
-    """Return paths of orphaned lyrics sidecars under a directory.
-
-    A sidecar is orphaned when no audio file in the same directory shares
-    its base name, compared without regard to case. The list is empty when
-    the directory or the audio format list is unavailable.
-    """
+    """Return paths of orphaned lyrics sidecars under a directory"""
     if not os.path.isdir(root_dir):
         api.logger.warning(f"{plugin_name(api)}: Directory does not exist: {root_dir}")
         return []
@@ -124,13 +119,13 @@ def find_orphaned_sidecars(api: PluginApi, root_dir: str) -> list[str]:
             for name in filenames:
                 stem, ext = os.path.splitext(name)
                 if ext.lower() in audio_extensions:
-                    audio_stems.add(stem.lower())
+                    audio_stems.add(stem)
 
             for name in filenames:
                 stem, ext = os.path.splitext(name)
                 if ext.lower() not in sidecar_extensions:
                     continue
-                if stem.lower() in audio_stems:
+                if stem in audio_stems:
                     continue
                 orphaned.append(os.path.join(dirpath, name))
 
