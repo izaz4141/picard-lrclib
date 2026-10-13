@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  lint-and-typecheck:
+  checks:
     runs-on: ubuntu-latest
 
     steps:
@@ -38,7 +38,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install PyQt6 mutagen PyYAML
+          pip install PyQt6 mutagen PyYAML pytest
 
       - name: Clone picard
         run: |
@@ -51,7 +51,7 @@ jobs:
         run: pip install ruff pyrefly
 
       - name: Run ruff
-        run: ruff check . --exclude picard-lib
+        run: ruff check
 
       - name: Run pyrefly
         run: pyrefly check --output-format=github
@@ -75,3 +75,8 @@ jobs:
           git archive HEAD | tar -x -C _smoke
           python -c "from _smoke import enable; print('import + entry point OK')"
           rm -rf _smoke
+
+      - name: Run tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest

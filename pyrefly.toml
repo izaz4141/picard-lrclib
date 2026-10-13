@@ -1,7 +1,7 @@
 # Pyrefly configuration — https://pyrefly.org/en/docs/configuration/
 
-# Type-check the plugin's own logic under src/.
-project-includes = ["src"]
+# Type-check the plugin's own logic under src/ and the test suite.
+project-includes = ["src", "tests"]
 
 # Don't report on the cloned Picard source or build/cache dirs.
 project-excludes = ["picard/**", "picard-lib/**", "_smoke/**", "build/**", "dist/**", ".ruff_cache/**"]
