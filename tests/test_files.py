@@ -7,6 +7,7 @@ from typing import Any
 
 from src.common.files import (
     find_orphaned_sidecars,
+    has_matching_audio,
     lrc_base_path,
     lyrics_lrc_path,
     read_lyrics_file,
@@ -78,6 +79,7 @@ def test_write_lyrics_file_preserves_old_on_failure(
 
 def test_remove_lrc_files(tmp_path: Path, make_api: Callable[..., Any]) -> None:
     api = make_api()
+    (tmp_path / "song.mp3").write_text("", encoding="utf-8")
     base = tmp_path / "song"
     lrc = tmp_path / "song.lrc"
     txt = tmp_path / "song.txt"
@@ -90,10 +92,27 @@ def test_remove_lrc_files(tmp_path: Path, make_api: Callable[..., Any]) -> None:
     assert not txt.exists()
 
 
+def test_remove_lrc_files_preserves_unproven_txt(
+    tmp_path: Path, make_api: Callable[..., Any]
+) -> None:
+    api = make_api()
+    base = tmp_path / "song"
+    lrc = tmp_path / "song.lrc"
+    txt = tmp_path / "song.txt"
+    lrc.write_text("a", encoding="utf-8")
+    txt.write_text("b", encoding="utf-8")
+
+    remove_lrc_files(api, str(base))
+
+    assert not lrc.exists()
+    assert txt.exists()
+
+
 def test_remove_lrc_files_skips_new_file(
     tmp_path: Path, make_api: Callable[..., Any]
 ) -> None:
     api = make_api()
+    (tmp_path / "song.mp3").write_text("", encoding="utf-8")
     base = tmp_path / "song"
     lrc = tmp_path / "song.lrc"
     txt = tmp_path / "song.txt"
@@ -104,6 +123,23 @@ def test_remove_lrc_files_skips_new_file(
 
     assert lrc.exists()
     assert not txt.exists()
+
+
+def test_has_matching_audio(tmp_path: Path, make_api: Callable[..., Any]) -> None:
+    api = make_api()
+    (tmp_path / "song.mp3").write_text("", encoding="utf-8")
+
+    assert has_matching_audio(api, str(tmp_path / "song"))
+    assert not has_matching_audio(api, str(tmp_path / "other"))
+
+
+def test_has_matching_audio_normalizes_extension(
+    tmp_path: Path, make_api: Callable[..., Any]
+) -> None:
+    api = make_api(extensions=["mp3"])
+    (tmp_path / "song.mp3").write_text("", encoding="utf-8")
+
+    assert has_matching_audio(api, str(tmp_path / "song"))
 
 
 def test_find_orphaned_sidecars(tmp_path: Path, make_api: Callable[..., Any]) -> None:

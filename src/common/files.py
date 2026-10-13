@@ -32,12 +32,14 @@ def read_lyrics_file(path: str) -> str:
 def remove_lrc_files(
     api: PluginApi, base_path: str, new_file: str | None = None
 ) -> None:
-    """Delete stale .lrc/.txt sidecars, skipping ``new_file``."""
+    """Delete stale lyrics sidecars, skipping ``new_file``"""
     for old_ext in (".txt", ".lrc"):
         old_file = base_path + old_ext
-        if old_file == new_file:
+        if old_file == new_file or (
+            old_ext == ".txt" and not has_matching_audio(api, base_path)
+        ):
             continue
-        if os.path.exists(old_file):
+        elif os.path.exists(old_file):
             try:
                 os.remove(old_file)
             except Exception:
@@ -79,6 +81,21 @@ def supported_audio_extensions(api: PluginApi) -> frozenset[str]:
     )
 
 
+def plugin_sidecar_extensions(api: PluginApi) -> set[str]:
+    """Return the sidecar extensions this plugin may write"""
+    extensions = {".lrc"}
+    if api.plugin_config["plain_as_txt"]:
+        extensions.add(".txt")
+    return extensions
+
+
+def has_matching_audio(api: PluginApi, base_path: str) -> bool:
+    """Return True when a same-stem audio file exists next to ``base_path``"""
+    return any(
+        os.path.isfile(f"{base_path}{ext}") for ext in supported_audio_extensions(api)
+    )
+
+
 def find_orphaned_sidecars(api: PluginApi, root_dir: str) -> list[str]:
     """Return paths of orphaned lyrics sidecars under a directory.
 
@@ -97,9 +114,7 @@ def find_orphaned_sidecars(api: PluginApi, root_dir: str) -> list[str]:
         )
         return []
 
-    sidecar_extensions = {".lrc"}
-    if api.plugin_config["plain_as_txt"]:
-        sidecar_extensions.add(".txt")
+    sidecar_extensions = plugin_sidecar_extensions(api)
 
     orphaned: list[str] = []
 
