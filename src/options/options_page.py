@@ -4,7 +4,7 @@ from PyQt6 import QtWidgets
 
 from picard.plugin3.api import OptionsPage
 
-from ..common.files import find_orphaned_sidecars, remove_sidecars
+from ..common.files import remove_sidecars, scan_orphaned_sidecars
 from ..common.util import plugin_name
 from .config import OPTIONS
 
@@ -67,7 +67,7 @@ class LrclibLyricsOptionsPage(OptionsPage):
             self.api.plugin_config[key] = checkbox.isChecked()
 
     def clean_orphaned_lyrics_files(self) -> None:
-        """Prompt for a directory and delete orphaned lyrics sidecars."""
+        """Prompt for a directory and scan it for orphaned lyrics sidecars."""
         try:
             parent = QtWidgets.QApplication.activeWindow()
 
@@ -88,7 +88,37 @@ class LrclibLyricsOptionsPage(OptionsPage):
             self.api.logger.info(
                 f"{plugin_name(self.api)}: Starting recursive scan of {root_dir}"
             )
-            orphaned = find_orphaned_sidecars(self.api, root_dir)
+
+            self.cleanup_button.setEnabled(False)
+            scan_orphaned_sidecars(self.api, root_dir, self._scan_finished)
+
+        except Exception:
+            self.cleanup_button.setEnabled(True)
+            self.api.logger.exception(
+                f"{plugin_name(self.api)}: Error starting orphaned files scan"
+            )
+
+    def _scan_finished(
+        self, result: list[str] | None = None, error: BaseException | None = None
+    ) -> None:
+        """Handle the scan result and delete the orphaned sidecars."""
+        self.cleanup_button.setEnabled(True)
+
+        if error is not None:
+            self.api.logger.exception(
+                f"{plugin_name(self.api)}: Error cleaning orphaned files",
+                exc_info=error,
+            )
+            QtWidgets.QMessageBox.critical(
+                QtWidgets.QApplication.activeWindow(),
+                "Cleanup Failed",
+                f"An error occurred while scanning for orphaned files:\n{error}",
+            )
+            return
+
+        try:
+            parent = QtWidgets.QApplication.activeWindow()
+            orphaned = result or []
 
             if not orphaned:
                 QtWidgets.QMessageBox.information(

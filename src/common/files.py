@@ -3,10 +3,16 @@ from __future__ import annotations
 import os
 import shutil
 import tempfile
+from typing import TypeAlias
 
 from picard.plugin3.api import PluginApi
+from picard.util.thread import Callback, run_task
 
 from .util import plugin_name
+
+
+# Called on the main thread with the scan result (``result``) or ``error``.
+ScanFinishedCallback: TypeAlias = Callback[list[str]]
 
 
 def lrc_base_path(filename: str) -> str:
@@ -146,3 +152,13 @@ def remove_sidecars(api: PluginApi, paths: list[str]) -> int:
         except Exception:
             api.logger.exception(f"{plugin_name(api)}: Failed to delete {path}")
     return removed
+
+
+def scan_orphaned_sidecars(
+    api: PluginApi, root_dir: str, on_finished: ScanFinishedCallback
+) -> None:
+    """Scan ``root_dir`` for orphaned sidecars off the UI thread."""
+    run_task(
+        lambda: find_orphaned_sidecars(api, root_dir),
+        on_finished,
+    )

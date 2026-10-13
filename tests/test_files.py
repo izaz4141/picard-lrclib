@@ -13,6 +13,7 @@ from src.common.files import (
     read_lyrics_file,
     remove_lrc_files,
     remove_sidecars,
+    scan_orphaned_sidecars,
     write_lyrics_file,
 )
 
@@ -207,3 +208,38 @@ def test_remove_sidecars(tmp_path: Path, make_api: Callable[..., Any]) -> None:
     assert removed == 2
     assert not first.exists()
     assert not second.exists()
+
+
+def test_scan_orphaned_sidecars_runs_in_task(
+    tmp_path: Path, make_api: Callable[..., Any], monkeypatch: Any
+) -> None:
+    api = make_api(config={"plain_as_txt": False})
+    (tmp_path / "song.mp3").write_text("", encoding="utf-8")
+    (tmp_path / "orphan.lrc").write_text("", encoding="utf-8")
+
+    captured: dict[str, Any] = {}
+
+    def fake_run_task(func: Callable[[], Any], next_func: Any) -> None:
+        captured["worker"] = func
+        captured["next"] = next_func
+
+    monkeypatch.setattr("src.common.files.run_task", fake_run_task)
+
+    delivered: list[Any] = []
+
+    class _Cb:
+        def __call__(
+            self, result: list[str] | None = None, error: BaseException | None = None
+        ) -> None:
+            delivered.append((result, error))
+
+    callback = _Cb()
+    scan_orphaned_sidecars(api, str(tmp_path), callback)
+
+    # The scan runs as the worker task, and our callback is the completion hook.
+    assert captured["next"] is callback
+    assert captured["worker"]() == [str(tmp_path / "orphan.lrc")]
+
+    # run_task is responsible for delivering the result back to the callback.
+    captured["next"](result=captured["worker"]())
+    assert delivered == [([str(tmp_path / "orphan.lrc")], None)]
