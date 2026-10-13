@@ -25,7 +25,7 @@ from ..common.files import (
     write_lyrics_file,
 )
 from ..common.util import plugin_name, truncate_text
-from ..ui.dialogs import confirm_replace, show_write_error
+from ..ui.dialogs import confirm_yes_no, show_critical
 from ..ui.search_dialog import show_search_table
 from .webservice import request
 
@@ -163,7 +163,7 @@ def process_response(
                     f"{truncate_text(lyrics, 5, 42)}"
                 )
                 parent = getattr(api.tagger, "window", None)
-                if not confirm_replace(parent, title, desc):
+                if not confirm_yes_no(api.logger, parent, title, desc):
                     return
 
             file.metadata["lyrics"] = lyrics
@@ -171,7 +171,13 @@ def process_response(
                 write_error = write_lyrics_file(api, file_lrc, lyrics)
                 if write_error is not None:
                     parent = getattr(api.tagger, "window", None)
-                    show_write_error(parent, file_lrc, write_error)
+                    show_critical(
+                        api.logger,
+                        parent,
+                        "Failed to Save LRC File",
+                        f"Could not save lyrics file:\n\n{file_lrc}\n\n"
+                        f"Error: {write_error}",
+                    )
                 else:
                     remove_lrc_files(api, base_path, file_lrc)
 
