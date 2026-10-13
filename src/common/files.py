@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import shutil
+import tempfile
 
 from picard.plugin3.api import PluginApi
 
@@ -27,10 +29,14 @@ def read_lyrics_file(path: str) -> str:
         return f.read()
 
 
-def remove_lrc_files(api: PluginApi, base_path: str) -> None:
-    """Delete stale .lrc and .txt sidecars before rewriting lyrics on save."""
+def remove_lrc_files(
+    api: PluginApi, base_path: str, new_file: str | None = None
+) -> None:
+    """Delete stale .lrc/.txt sidecars, skipping ``new_file``."""
     for old_ext in (".txt", ".lrc"):
         old_file = base_path + old_ext
+        if old_file == new_file:
+            continue
         if os.path.exists(old_file):
             try:
                 os.remove(old_file)
@@ -39,12 +45,27 @@ def remove_lrc_files(api: PluginApi, base_path: str) -> None:
 
 
 def write_lyrics_file(api: PluginApi, file_path: str, lyrics: str) -> str | None:
-    """Write lyrics to a file, returning an error message on failure or None
+    """Write lyrics atomically, returning an error message on failure or None
     on success."""
+    directory = os.path.dirname(file_path) or "."
+    temp_path: str | None = None
     try:
-        with open(file_path, "w", encoding="utf-8") as f:
+        fd, temp_path = tempfile.mkstemp(dir=directory, prefix=".lrc-", suffix=".tmp")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(lyrics)
+        if os.path.exists(file_path):
+            shutil.copymode(file_path, temp_path)
+        else:
+            os.chmod(temp_path, 0o644)
+        os.replace(temp_path, file_path)
     except Exception as e:
+        if temp_path is not None and os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                api.logger.exception(
+                    f"{plugin_name(api)}: Failed to remove temporary file {temp_path}"
+                )
         api.logger.exception(f"{plugin_name(api)}: Failed to write .lrc file")
         return str(e)
     return None
