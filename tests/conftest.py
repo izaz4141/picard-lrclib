@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from picard.plugin3.api import Metadata
 
-DEFAULT_CONFIG: dict[str, Any] = {"plain_as_txt": False}
+DEFAULT_CONFIG: dict[str, Any] = {"plain_as_txt": False, "prefer_synced_lyrics": True}
 DEFAULT_EXTENSIONS = [".mp3", ".flac", ".ogg"]
 
 

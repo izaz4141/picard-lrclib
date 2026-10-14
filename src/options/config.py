@@ -15,6 +15,9 @@ class Option(NamedTuple):
 
 # All plugin options in display order.
 OPTIONS: tuple[Option, ...] = (
+    Option(
+        "prefer_synced_lyrics", "Prefer synchronized lyrics over plain lyrics", True
+    ),
     Option("get_on_load", "Search for lyrics when loading tracks", False),
     Option("get_on_save", "Search for lyrics when saving files", False),
     Option("auto_overwrite", "Auto overwrite existing lyrics", False),

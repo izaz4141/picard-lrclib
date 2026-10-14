@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from picard.plugin3.api import PluginApi
 
+from .models import LrclibTrack
+
 
 def plugin_name(api: PluginApi) -> str:
     """Display name for this plugin, taken from MANIFEST.toml."""
@@ -32,6 +34,22 @@ def truncate_text(text: str, max_lines: int = 5, max_chars_per_line: int = 46) -
         lines = lines[:max_lines]
         lines[-1] = lines[-1].rstrip() + " …"
     return "\n".join(lines)
+
+
+def pick_lyrics(
+    track: LrclibTrack, prefer_synced_lyrics: bool = True
+) -> tuple[str | None, bool]:
+    """Return ``(lyrics, is_plain)``, preferring synced lyrics unless disabled."""
+    synced = track.get("syncedLyrics")
+    plain = track.get("plainLyrics")
+    order = (
+        ((synced, False), (plain, True))
+        if prefer_synced_lyrics
+        else ((plain, True), (synced, False))
+    )
+    return next(
+        (lyric for lyric in order if lyric[0] and lyric[0].strip()), (None, False)
+    )
 
 
 def parse_duration(time_str: str) -> int:

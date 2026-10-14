@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from src.common.util import format_duration, parse_duration, truncate_text
+from src.common.util import (
+    format_duration,
+    parse_duration,
+    pick_lyrics,
+    truncate_text,
+)
 
 
 def test_format_duration_minutes() -> None:
@@ -61,3 +66,43 @@ def test_truncate_text_max_lines() -> None:
     lines = result.splitlines()
     assert len(lines) == 3
     assert lines[-1].endswith("…")
+
+
+def test_pick_lyrics_prefers_synced() -> None:
+    track = {"plainLyrics": "plain", "syncedLyrics": "[00:01.00] synced"}
+    assert pick_lyrics(track, prefer_synced_lyrics=True) == ("[00:01.00] synced", False)
+
+
+def test_pick_lyrics_prefers_plain() -> None:
+    track = {"plainLyrics": "plain", "syncedLyrics": "[00:01.00] synced"}
+    assert pick_lyrics(track, prefer_synced_lyrics=False) == ("plain", True)
+
+
+def test_pick_lyrics_falls_back_to_plain() -> None:
+    track = {"plainLyrics": "plain"}
+    assert pick_lyrics(track, prefer_synced_lyrics=True) == ("plain", True)
+
+
+def test_pick_lyrics_falls_back_to_synced() -> None:
+    track = {"syncedLyrics": "[00:01.00] synced"}
+    assert pick_lyrics(track, prefer_synced_lyrics=False) == (
+        "[00:01.00] synced",
+        False,
+    )
+
+
+def test_pick_lyrics_missing() -> None:
+    assert pick_lyrics({}, prefer_synced_lyrics=True) == (None, False)
+    assert pick_lyrics({}, prefer_synced_lyrics=False) == (None, False)
+
+
+def test_pick_lyrics_ignores_empty_strings() -> None:
+    track = {"plainLyrics": "", "syncedLyrics": ""}
+    assert pick_lyrics(track, prefer_synced_lyrics=True) == (None, False)
+    assert pick_lyrics(track, prefer_synced_lyrics=False) == (None, False)
+
+
+def test_pick_lyrics_ignores_whitespace() -> None:
+    track = {"plainLyrics": "   ", "syncedLyrics": "\n\t"}
+    assert pick_lyrics(track, prefer_synced_lyrics=True) == (None, False)
+    assert pick_lyrics(track, prefer_synced_lyrics=False) == (None, False)

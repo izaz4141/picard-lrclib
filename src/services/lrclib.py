@@ -24,7 +24,7 @@ from ..common.files import (
     remove_lrc_files,
     write_lyrics_file,
 )
-from ..common.util import plugin_name, truncate_text
+from ..common.util import pick_lyrics, plugin_name, truncate_text
 from ..ui.dialogs import confirm_yes_no, show_critical
 from ..ui.search_dialog import show_search_table
 from .webservice import request
@@ -119,12 +119,10 @@ def process_response(
             or "[au: instrumental]" in (response.get("plainLyrics") or "")
         ) and (api.plugin_config["ignore_instrumental"] and method != "search"):
             lyrics = None
-        elif response.get("syncedLyrics"):
-            lyrics = response.get("syncedLyrics")
-            is_plain = False
         else:
-            lyrics = response.get("plainLyrics", None)
-            is_plain = True
+            lyrics, is_plain = pick_lyrics(
+                response, bool(api.plugin_config["prefer_synced_lyrics"])
+            )
         if not isinstance(lyrics, str):
             return
 

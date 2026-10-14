@@ -8,7 +8,8 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
 - 💾 Saves lyrics to:
   - `lyrics` metadata tag (for players like MusicBee/iTunes)
   - `.lrc` files (for Jellyfin, Plex, Kodi, etc.)
-- ⚡ Optionally enable automatic lyric fetching whenever a track is loaded
+- 🔄 Prefers **synchronized** lyrics (with timestamps), with an option to prefer plain lyrics instead
+- ⚡ Optionally enable automatic lyric fetching whenever a track is loaded/saved
 - 🚫 Receive a confirmation prompt before overwriting existing `.lrc` files or `lyrics` metadata
 - 🧹 Remove orphaned `.lrc` files that no longer have matching audio files
 
