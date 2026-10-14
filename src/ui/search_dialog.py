@@ -7,7 +7,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 from picard.plugin3.api import Album, PluginApi
 
 from ..common.models import LrclibTrack
-from ..common.util import format_duration, plugin_name
+from ..common.util import format_duration, pick_lyrics, plugin_name
 from ..services.webservice import search_refresh
 from .dialogs import show_critical
 
@@ -23,7 +23,7 @@ def show_search_table(
     parent = QtWidgets.QApplication.activeWindow() if parent is None else parent
     dialog = QtWidgets.QDialog(parent)
     dialog.setWindowTitle("Search Tracks")
-    dialog.resize(700, 400)
+    dialog.resize(1000, 600)
 
     layout = QtWidgets.QVBoxLayout(dialog)
 
@@ -60,7 +60,27 @@ def show_search_table(
     table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
     table.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows)
     table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.SingleSelection)
-    layout.addWidget(table)
+
+    lyrics_label = QtWidgets.QLabel("Select a track to preview lyrics", dialog)
+    lyrics_view = QtWidgets.QPlainTextEdit(dialog)
+    lyrics_view.setReadOnly(True)
+    lyrics_view.setFont(
+        QtGui.QFontDatabase.systemFont(QtGui.QFontDatabase.SystemFont.FixedFont)
+    )
+
+    lyrics_panel = QtWidgets.QWidget(dialog)
+    lyrics_layout = QtWidgets.QVBoxLayout(lyrics_panel)
+    lyrics_layout.setContentsMargins(0, 0, 0, 0)
+    lyrics_layout.addWidget(lyrics_label)
+    lyrics_layout.addWidget(lyrics_view)
+    lyrics_panel.setVisible(False)
+
+    splitter = QtWidgets.QSplitter(QtCore.Qt.Orientation.Horizontal, dialog)
+    splitter.addWidget(table)
+    splitter.addWidget(lyrics_panel)
+    splitter.setStretchFactor(0, 3)
+    splitter.setStretchFactor(1, 2)
+    layout.addWidget(splitter)
 
     button_box = QtWidgets.QDialogButtonBox(
         QtWidgets.QDialogButtonBox.StandardButton.Ok
@@ -72,6 +92,9 @@ def show_search_table(
         """Fill the results table with the given tracks."""
         table.setSortingEnabled(False)
         table.setRowCount(0)
+        lyrics_view.clear()
+        lyrics_label.setText("Select a track to preview lyrics")
+        lyrics_panel.setVisible(False)
         if not response:
             return
         table.setRowCount(len(response))
@@ -157,6 +180,45 @@ def show_search_table(
                 return value
         return None
 
+    def selected_track() -> LrclibTrack | None:
+        """Return the track object for the current selection, if any."""
+        track_id = selected_track_id()
+        if track_id is None:
+            return None
+        return next((t for t in response if t.get("id") == track_id), None)
+
+    preview_sizes: list[int] = []
+
+    def sync_lyrics_preview() -> None:
+        """Show the selected track's lyrics in the preview panel."""
+        nonlocal preview_sizes
+        selection = table.selectionModel()
+        selected = bool(selection and selection.selectedRows(0))
+        track = selected_track() if selected else None
+        was_hidden = not lyrics_panel.isVisible()
+        lyrics_panel.setVisible(selected)
+        if track is None:
+            if not was_hidden:
+                preview_sizes = splitter.sizes()  # remember before collapsing
+            lyrics_view.clear()
+            lyrics_label.setText("Select a track to preview lyrics")
+            return
+        if was_hidden:
+            width = splitter.width()
+            default = [int(width * 0.6), width - int(width * 0.6)]
+            splitter.setSizes(preview_sizes or default)
+        lyrics, is_plain = pick_lyrics(
+            track, bool(api.plugin_config["prefer_synced_lyrics"])
+        )
+        if not lyrics:
+            lyrics_view.clear()
+            lyrics_label.setText("No lyrics available for this track")
+            return
+        lyrics_view.setPlainText(lyrics)
+        lyrics_label.setText("Plain lyrics" if is_plain else "Synced lyrics")
+
+    table.itemSelectionChanged.connect(sync_lyrics_preview)
+
     def on_double_click(index: QtCore.QModelIndex) -> None:
         """Accept the dialog when a row is double-clicked."""
         if index.isValid():
@@ -171,19 +233,14 @@ def show_search_table(
     if result != QtWidgets.QDialog.DialogCode.Accepted:
         return None  # cancelled by the user - not an error
 
-    track_id = selected_track_id()
-    match = (
-        next((t for t in response if t.get("id") == track_id), None)
-        if track_id is not None
-        else None
-    )
+    match = selected_track()
     if match is None:
-        if track_id is None:
-            message = "No track was selected in the search results."
-        else:
-            message = (
-                f"The selected track (id={track_id}) is no longer in the results."
-            )
+        track_id = selected_track_id()
+        message = (
+            f"The selected track (id={track_id}) is no longer in the results."
+            if track_id is not None
+            else "No track was selected in the search results."
+        )
         api.logger.error(f"{plugin_name(api)}: {message}")
         show_critical(api.logger, dialog, "LRCLIB search", message)
         return None
