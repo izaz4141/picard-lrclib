@@ -9,6 +9,7 @@ from picard.plugin3.api import Album, PluginApi
 from ..common.models import LrclibTrack
 from ..common.util import format_duration, plugin_name
 from ..services.webservice import search_refresh
+from .dialogs import show_critical
 
 
 def show_search_table(
@@ -78,6 +79,7 @@ def show_search_table(
             num_item = QtWidgets.QTableWidgetItem()
             num_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)  # type: ignore
             num_item.setData(QtCore.Qt.ItemDataRole.EditRole, row + 1)  # type: ignore
+            num_item.setData(QtCore.Qt.ItemDataRole.UserRole, item.get("id"))
             table.setItem(row, 0, num_item)
 
             has_synced = item.get("syncedLyrics") or False
@@ -90,6 +92,7 @@ def show_search_table(
             ]
             for col, val in enumerate(values, start=1):
                 cell_item = QtWidgets.QTableWidgetItem(str(val))
+                cell_item.setData(QtCore.Qt.ItemDataRole.UserRole, item.get("id"))
                 if col in [3, 5]:
                     cell_item.setTextAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)  # type: ignore
                     if col == 5:
@@ -137,6 +140,23 @@ def show_search_table(
     search_button.clicked.connect(on_search_clicked)
     search_input.returnPressed.connect(on_search_clicked)
 
+    def selected_track_id() -> int | None:
+        """Resolve the selected track id from the sorted selection model."""
+        model = table.model()
+        selection = table.selectionModel()
+        rows: list[QtCore.QModelIndex] = []
+        if selection is not None:
+            rows = selection.selectedRows(0)
+        if not rows and table.currentIndex().isValid():
+            rows = [table.currentIndex()]
+        if model is None:
+            return None
+        for idx in rows:
+            value = model.data(idx, QtCore.Qt.ItemDataRole.UserRole)
+            if isinstance(value, int):
+                return value
+        return None
+
     def on_double_click(index: QtCore.QModelIndex) -> None:
         """Accept the dialog when a row is double-clicked."""
         if index.isValid():
@@ -148,8 +168,23 @@ def show_search_table(
     button_box.rejected.connect(dialog.reject)
 
     result = dialog.exec()
-    if result == QtWidgets.QDialog.DialogCode.Accepted:
-        selected = table.currentRow()
-        return response[selected] if selected >= 0 else None
-    else:
+    if result != QtWidgets.QDialog.DialogCode.Accepted:
+        return None  # cancelled by the user - not an error
+
+    track_id = selected_track_id()
+    match = (
+        next((t for t in response if t.get("id") == track_id), None)
+        if track_id is not None
+        else None
+    )
+    if match is None:
+        if track_id is None:
+            message = "No track was selected in the search results."
+        else:
+            message = (
+                f"The selected track (id={track_id}) is no longer in the results."
+            )
+        api.logger.error(f"{plugin_name(api)}: {message}")
+        show_critical(api.logger, dialog, "LRCLIB search", message)
         return None
+    return match
