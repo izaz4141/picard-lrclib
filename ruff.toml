@@ -1,0 +1,9 @@
+exclude = ["picard-lib", "picard", "build", "dist", ".git", "__pycache__"]
+
+[lint]
+extend-select = ["ANN"]
+# N999: allow hyphenated plugin directory/package names
+# BLE001: broad exception catches are intentional in plugin hooks/callbacks
+# ANN401: Any is acceptable at JSON/Qt boundaries
+# I001: Import block on local ruff & git workflow ruff is inconsistent
+ignore = ["N999", "BLE001", "ANN401", "I001"]

@@ -13,13 +13,26 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
 - 🧹 Remove orphaned `.lrc` files that no longer have matching audio files
 
 ## Installation
-1. **Download Plugin Files**:
-   - Get the latest `.py` files from [**GitHub Releases**](https://raw.githubusercontent.com/izaz4141/picard-lrclib/refs/heads/main/lrcget.py)
-   
-2. **Install in Picard**:
-   - Open Picard → `Options` → `Plugins`
-   - Click `Install Plugin` 
-   - Select the downloaded `.py` file(s)
+
+Picard 3.0+ installs plugins via **git repository** or **local folder**
+
+### Option 1 — Install from Git URL (recommended)
+Keeps the plugin git-managed so Picard can update it.
+
+- **GUI:** `Options` → `Plugins` → **Install Plugin…** → **URL** tab, paste
+  `https://github.com/izaz4141/picard-lrclib`.
+  Optionally set **Ref/Tag** to a specific release or leave it blank for the latest `main`.
+- **CLI:** `picard-cli plugins install https://github.com/izaz4141/picard-lrclib`
+  To pin a release: `picard-cli plugins install https://github.com/izaz4141/picard-lrclib --ref 2.0.0`
+
+### Option 2 — Install from a Release Archive
+- Download the latest release archive from the
+  [GitHub Releases](https://github.com/izaz4141/picard-lrclib/releases) page and extract it.
+- **GUI:** `Options` → `Plugins` → **Install Plugin…** → **Local** tab → **Browse…** and select the extracted folder.
+- **CLI:** `picard-cli plugins install /path/to/extracted/folder`
+
+> **Note:** Folder installs are *not* git-managed, so Picard won't auto-update them — update by
+> installing a fresh archive, or switch to the Git URL method.
 
 ## Usage
 1. **Fetch Lyrics**  
@@ -51,7 +64,7 @@ A MusicBrainz Picard plugin to fetch lyrics from [LRCLIB](https://lrclib.net) an
 ## Compatibility
 | Component           | Supported          |
 |---------------------|--------------------|
-| Picard Versions     | 2.0+ (API v2.0-2.6)|
+| Picard Versions     | 3.0+ |
 | Audio Formats       | All (MP3, FLAC, etc.) |
 | Media Servers       | Jellyfin, Plex, Emby |
 | Players             | MusicBee, Foobar2000, AIMP |

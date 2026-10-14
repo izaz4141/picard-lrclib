@@ -1,1 +1,6 @@
 picard/*
+picard-lib/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
